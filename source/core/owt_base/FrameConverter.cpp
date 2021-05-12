@@ -147,4 +147,40 @@ bool FrameConverter::convert(webrtc::VideoFrameBuffer *srcBuffer, webrtc::I420Bu
     return true;
 }
 
+bool FrameConverter::convert(webrtc::VideoFrameBuffer *srcBuffer, AVFrame *avframe)
+{
+    int ret;
+
+    if (srcBuffer->width() == avframe->width && srcBuffer->height() == avframe->height) {
+        ret = libyuv::I420Copy(
+                srcBuffer->DataY(), srcBuffer->StrideY(),
+                srcBuffer->DataU(), srcBuffer->StrideU(),
+                srcBuffer->DataV(), srcBuffer->StrideV(),
+                avframe->data[0], avframe->linesize[0],
+                avframe->data[1], avframe->linesize[1],
+                avframe->data[2], avframe->linesize[2],
+                avframe->width,        avframe->height);
+        if (ret != 0) {
+            ELOG_ERROR("libyuv::I420Copy failed(%d)", ret);
+            return false;
+        }
+    } else { // scale
+        ret = libyuv::I420Scale(
+                srcBuffer->DataY(),   srcBuffer->StrideY(),
+                srcBuffer->DataU(),   srcBuffer->StrideU(),
+                srcBuffer->DataV(),   srcBuffer->StrideV(),
+                srcBuffer->width(),   srcBuffer->height(),
+                avframe->data[0], avframe->linesize[0],
+                avframe->data[1], avframe->linesize[1],
+                avframe->data[2], avframe->linesize[2],
+                avframe->width,        avframe->height,
+                libyuv::kFilterBox);
+        if (ret != 0) {
+            ELOG_ERROR("libyuv::I420Scale failed(%d)", ret);
+            return false;
+        }
+    }
+
+    return true;
+}
 }//namespace owt_base

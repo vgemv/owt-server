@@ -20,6 +20,10 @@
 #include "MsdkScaler.h"
 #endif
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+}
+
 namespace owt_base {
 
 class FrameConverter {
@@ -36,6 +40,7 @@ public:
     bool convert(webrtc::VideoFrameBuffer *srcBuffer, MsdkFrame *dstMsdkFrame);
 #endif
     bool convert(webrtc::VideoFrameBuffer *srcBuffer, webrtc::I420Buffer *dstI420Buffer);
+    bool convert(webrtc::VideoFrameBuffer *srcBuffer, AVFrame *avframe);
 
 protected:
 

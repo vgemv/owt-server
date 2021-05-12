@@ -18,6 +18,7 @@
 #include <VCMFrameEncoder.h>
 
 #include <FFmpegFrameDecoder.h>
+// #include <FFmpegFrameEncoder.h>
 
 #ifdef ENABLE_MSDK
 #include "MsdkVideoCompositor.h"
@@ -260,6 +261,9 @@ inline bool VideoFrameMixerImpl::addOutput(int output,
         if (!encoder && format == owt_base::FRAME_FORMAT_H265)
             encoder.reset(new owt_base::SVTHEVCEncoder(format, profile, m_useSimulcast));
 #endif
+
+        // if (!encoder && owt_base::FFmpegFrameEncoder::supportFormat(format))
+        //     encoder.reset(new owt_base::FFmpegFrameEncoder(format, profile, m_useSimulcast));
 
         if (!encoder && owt_base::VCMFrameEncoder::supportFormat(format))
             encoder.reset(new owt_base::VCMFrameEncoder(format, profile, m_useSimulcast));
