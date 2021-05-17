@@ -56,7 +56,7 @@ private:
 
 class VideoFrameMixerImpl : public VideoFrameMixer {
 public:
-    VideoFrameMixerImpl(uint32_t maxInput, owt_base::VideoSize rootSize, owt_base::YUVColor bgColor, bool useSimulcast, bool crop);
+    VideoFrameMixerImpl(uint32_t maxInput, owt_base::VideoSize rootSize, owt_base::YUVColor bgColor, rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame, bool useSimulcast, bool crop);
     ~VideoFrameMixerImpl();
 
     bool addInput(int input, owt_base::FrameFormat, owt_base::FrameSource*, const std::string& avatar);
@@ -76,6 +76,7 @@ public:
     void requestKeyFrame(int output);
 
     void updateLayoutSolution(LayoutSolution& solution);
+    void updateSceneSolution(SceneSolution& solution);
 
     void drawText(const std::string& textSpec);
     void clearText();
@@ -103,7 +104,7 @@ private:
     bool m_useSimulcast;
 };
 
-VideoFrameMixerImpl::VideoFrameMixerImpl(uint32_t maxInput, owt_base::VideoSize rootSize, owt_base::YUVColor bgColor, bool useSimulcast, bool crop)
+VideoFrameMixerImpl::VideoFrameMixerImpl(uint32_t maxInput, owt_base::VideoSize rootSize, owt_base::YUVColor bgColor, rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame, bool useSimulcast, bool crop)
     : m_useSimulcast(useSimulcast)
 {
 #ifdef ENABLE_MSDK
@@ -112,7 +113,7 @@ VideoFrameMixerImpl::VideoFrameMixerImpl(uint32_t maxInput, owt_base::VideoSize 
 #endif
 
     if (!m_compositor)
-        m_compositor.reset(new SoftVideoCompositor(maxInput, rootSize, bgColor, crop));
+        m_compositor.reset(new SoftVideoCompositor(maxInput, rootSize, bgColor, bgFrame, crop));
 }
 
 VideoFrameMixerImpl::~VideoFrameMixerImpl()
@@ -208,6 +209,11 @@ inline void VideoFrameMixerImpl::setInputActive(int input, bool active)
 inline void VideoFrameMixerImpl::updateLayoutSolution(LayoutSolution& solution)
 {
     m_compositor->updateLayoutSolution(solution);
+}
+
+inline void VideoFrameMixerImpl::updateSceneSolution(SceneSolution& solution)
+{
+    m_compositor->updateSceneSolution(solution);
 }
 
 inline void VideoFrameMixerImpl::setBitrate(unsigned short kbps, int output)

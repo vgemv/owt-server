@@ -15,6 +15,7 @@
       '../../../../core/owt_base/FFmpegFrameEncoder.cpp',
       '../../../../core/owt_base/FFmpegDrawText.cpp',
       '../../../../core/owt_base/SVTHEVCEncoder.cpp',
+      '../../../../core/owt_base/VideoHelper.cpp',
       '../../../../core/common/JobTimer.cpp',
     ],
     'cflags_cc': [

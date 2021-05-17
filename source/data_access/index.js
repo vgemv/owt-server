@@ -53,4 +53,5 @@ if (fs.existsSync(cipher.astore)) {
 
 exports.token = require('./interface/tokenInterface');
 exports.room = require('./interface/roomInterface');
+exports.image = require('./interface/imageInterface');
 exports.service = require('./interface/serviceInterface');

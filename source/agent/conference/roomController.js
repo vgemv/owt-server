@@ -1904,6 +1904,24 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         }
     };
 
+    that.setScene = function (toView, scene, on_ok, on_error) {
+        log.debug('setScene, toView:', toView, 'scene:', JSON.stringify(scene));
+        var video_mixer = getSubMediaMixer(toView, 'video');
+        if (video_mixer) {
+            makeRPC(
+                rpcClient,
+                terminals[video_mixer].locality.node,
+                'setScene',
+                [scene],
+                function (data) {
+                    on_ok(data);
+                    resetVAD(toView);
+                }, on_error);
+        } else {
+            on_error('Invalid mix view');
+        }
+    };
+
     that.setPrimary = function (inputStreamId, view) {
         log.debug('setPrimary:', inputStreamId, view);
         var video_mixer = getSubMediaMixer(view, 'video');

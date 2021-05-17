@@ -6,6 +6,7 @@
 #define VideoFrameMixer_h
 
 #include "VideoLayout.h"
+#include "VideoScene.h"
 #include <MediaFramePipeline.h>
 
 namespace mcu {
@@ -21,6 +22,7 @@ public:
     virtual bool unsetAvatar(int input) = 0;
     virtual void pushInput(int input, const owt_base::Frame&) = 0;
     virtual void updateLayoutSolution(LayoutSolution& solution) = 0;
+    virtual void updateSceneSolution(SceneSolution& solution) = 0;
 
     virtual bool addOutput(const uint32_t width, const uint32_t height, const uint32_t framerateFPS, owt_base::FrameDestination *dst) = 0;
     virtual bool removeOutput(owt_base::FrameDestination *dst) = 0;
@@ -51,6 +53,7 @@ public:
     virtual void requestKeyFrame(int output) = 0;
 
     virtual void updateLayoutSolution(LayoutSolution& solution) = 0;
+    virtual void updateSceneSolution(SceneSolution& solution) = 0;
 
     virtual void drawText(const std::string& textSpec) = 0;
     virtual void clearText() = 0;

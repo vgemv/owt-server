@@ -13,6 +13,7 @@
 
 #include "MediaFramePipeline.h"
 #include "VideoLayout.h"
+#include "VideoScene.h"
 
 namespace mcu {
 
@@ -27,6 +28,7 @@ struct VideoMixerConfig {
         int g;
         int b;
     } bgColor;
+    boost::shared_ptr<ImageData> bgImage;
     bool useGacc;
     uint32_t MFE_timeout;
 };
@@ -54,6 +56,7 @@ public:
 
     // Update Layout solution
     void updateLayoutSolution(LayoutSolution& solution);
+    void updateSceneSolution(SceneSolution& solution);
 
     void drawText(const std::string& textSpec);
     void clearText();

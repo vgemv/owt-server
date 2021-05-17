@@ -8,6 +8,17 @@ var Default = require('./../defaults');
 var Room = require('./../model/roomModel');
 var Service = require('./../model/serviceModel');
 
+function generateBufferFromBase64(roomOption) {
+
+  if (roomOption.views && roomOption.views.forEach) {
+    roomOption.views.forEach((view) => {
+      if (view.video && view.video.bgImageData && typeof(view.video.bgImageData) == "string") {
+        view.video.bgImageData = new Buffer(view.video.bgImageData, "base64");
+      }
+    });
+  }
+}
+
 function getAudioOnlyLabels(roomOption) {
   var labels = [];
   if (roomOption.views && roomOption.views.forEach) {
@@ -90,6 +101,8 @@ exports.create = function (serviceId, roomOption, callback) {
   }
 
   removeNull(roomOption);
+  //generateBufferFromBase64(roomOption);
+
   var labels = getAudioOnlyLabels(roomOption);
   var room = new Room(roomOption);
   if (!checkMediaOut(room, roomOption)) {

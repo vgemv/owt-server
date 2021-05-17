@@ -364,6 +364,7 @@ function VMixer(rpcClient, clusterIP) {
             'maxinput': videoConfig.maxInput || 16,
             'resolution': resolution2String(videoConfig.parameters.resolution),
             'backgroundcolor': (typeof videoConfig.bgColor === 'string') ? colorMap[videoConfig.bgColor] : videoConfig.bgColor,
+            'backgroundimage': videoConfig.bgImage,
             'layout': videoConfig.layout.templates,
             'crop': (videoConfig.layout.fitPolicy === 'crop' ? true : false),
             'gaccplugin': gaccPluginEnabled,
@@ -385,6 +386,25 @@ function VMixer(rpcClient, clusterIP) {
             }
 
             var streamRegions = formatLayoutSolution(layoutSolution);
+            var layoutChangeArgs = [belong_to, streamRegions, view];
+            rpcClient.remoteCall(controller, 'onVideoLayoutChange', layoutChangeArgs);
+        });
+        layoutProcessor.on('sceneChange', function (sceneSolution) {
+            log.debug('sceneChange', sceneSolution);
+            if (typeof engine.updateSceneSolution === 'function') {
+                
+                if (sceneSolution.bgImageID) {
+                    dataAccess.image.get(sceneSolution.bgImageID, (err, image)=>{
+                        sceneSolution.bgImageData = image.data;
+                        engine.updateSceneSolution(sceneSolution);
+                    });
+                } else
+                    engine.updateSceneSolution(sceneSolution);
+            } else {
+                log.warn('No native method: updateSceneSolution');
+            }
+
+            var streamRegions = formatLayoutSolution(sceneSolution.layout);
             var layoutChangeArgs = [belong_to, streamRegions, view];
             rpcClient.remoteCall(controller, 'onVideoLayoutChange', layoutChangeArgs);
         });
@@ -661,6 +681,61 @@ function VMixer(rpcClient, clusterIP) {
         } else {
             callback('callback', 'error', 'Invalid input stream_id.');
         }
+    };
+
+    that.setScene = function (scene, callback) {
+        log.debug('setScene, scene:', JSON.stringify(scene));
+
+        let layout = scene.layout;
+
+        var specified_streams = layout.map((obj) => {return obj.stream ? obj.stream : null;}).filter((st) => { return st;});
+        var current_streams = [];
+
+        inputManager.getStreamList().map((stream_id) => {
+            let input = inputManager.remove(stream_id);
+            if (input.id >= 0) {
+                engine.removeInput(input.id);
+            }
+
+            input.stream = stream_id;
+
+            if (specified_streams.indexOf(stream_id) >= 0) {
+              current_streams.unshift(input);
+            } else {
+              current_streams.push(input);
+            }
+        });
+
+        inputManager.reset(layout.length);
+
+        current_streams.forEach((obj) => {
+          let input = inputManager.add(obj.stream, obj.codec, obj.conn, obj.avatar);
+          if (input >= 0) {
+            engine.addInput(input, obj.codec, obj.conn, obj.avatar);
+            if (specified_streams.indexOf(obj.stream) < 0) {
+              for (var i in layout) {
+                if (!layout[i].stream) {
+                  layout[i].stream = obj.stream;
+                  break;
+                }
+              }
+            }
+          }
+        });
+
+        var inputLayout = layout.map((obj) => {
+          if (obj.stream) {
+            return {input: inputManager.get(obj.stream).id, region: obj.region};
+          } else {
+            return {region: obj.region};
+          }
+        });
+
+        layoutProcessor.setScene({ ...scene, layout:inputLayout }, function(sceneSolution) {
+          callback('callback', { ...sceneSolution, layout: formatLayoutSolution(sceneSolution.layout) } );
+        }, function(err) {
+          callback('callback', 'error', 'layoutProcessor failed');
+        });
     };
 
     that.setLayout = function (layout, callback) {

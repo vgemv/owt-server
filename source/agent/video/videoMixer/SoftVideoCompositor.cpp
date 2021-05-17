@@ -244,6 +244,7 @@ SoftFrameGenerator::SoftFrameGenerator(
             SoftVideoCompositor *owner,
             owt_base::VideoSize &size,
             owt_base::YUVColor &bgColor,
+            const rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame,
             const bool crop,
             const uint32_t maxFps,
             const uint32_t minFps)
@@ -255,6 +256,7 @@ SoftFrameGenerator::SoftFrameGenerator(
     , m_counterMax(0)
     , m_size(size)
     , m_bgColor(bgColor)
+    , m_bgFrame(bgFrame)
     , m_crop(crop)
     , m_configureChanged(false)
     , m_parallelNum(0)
@@ -337,6 +339,16 @@ void SoftFrameGenerator::updateLayoutSolution(LayoutSolution& solution)
 
     m_newLayout         = solution;
     m_configureChanged  = true;
+}
+
+void SoftFrameGenerator::updateSceneSolution(SceneSolution& solution)
+{
+    boost::unique_lock<boost::shared_mutex> lock(m_configMutex);
+
+    if(solution.layout){
+        m_newLayout         = *solution.layout;
+        m_configureChanged  = true;
+    }
 }
 
 bool SoftFrameGenerator::isSupported(uint32_t width, uint32_t height, uint32_t fps)
@@ -536,6 +548,38 @@ rtc::scoped_refptr<webrtc::VideoFrameBuffer> SoftFrameGenerator::layout()
             compositeBuffer->MutableDataV(), compositeBuffer->StrideV(),
             0, 0, compositeBuffer->width(), compositeBuffer->height(),
             m_bgColor.y, m_bgColor.cb, m_bgColor.cr);
+            
+    if(m_bgFrame){
+        rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgBuffer = m_bgFrame;
+
+        uint32_t cropped_x = 0;
+        uint32_t cropped_y = 0;
+        uint32_t cropped_width = bgBuffer->width();
+        uint32_t cropped_height = bgBuffer->height();
+        float bgRatio = bgBuffer->width() / (float)bgBuffer->height();
+        float compositeRatio = m_size.width / (float)m_size.height;
+
+        // 等比例填满
+        // 1920/1080 - 1919/1080 = 0.0009
+        if (bgRatio - compositeRatio > 0.001) {
+            cropped_x = (compositeRatio * bgBuffer->height() - m_size.width) / 2;
+            cropped_width = compositeRatio * bgBuffer->height();
+        } else if (bgRatio - compositeRatio < -0.001) {
+            cropped_y = ( bgBuffer->width() / compositeRatio - m_size.height) / 2;
+            cropped_height = bgBuffer->width() / compositeRatio;
+        } 
+
+        libyuv::I420Scale(
+                bgBuffer->DataY() + cropped_y * bgBuffer->StrideY() + cropped_x, bgBuffer->StrideY(),
+                bgBuffer->DataU() + (cropped_y * bgBuffer->StrideU() + cropped_x) / 2, bgBuffer->StrideU(),
+                bgBuffer->DataV() + (cropped_y * bgBuffer->StrideV() + cropped_x) / 2, bgBuffer->StrideV(),
+                cropped_width, cropped_height,
+                compositeBuffer->MutableDataY() + 0 * compositeBuffer->StrideY() + 0, compositeBuffer->StrideY(),
+                compositeBuffer->MutableDataU() + (0 * compositeBuffer->StrideU() + 0) / 2, compositeBuffer->StrideU(),
+                compositeBuffer->MutableDataV() + (0 * compositeBuffer->StrideV() + 0) / 2, compositeBuffer->StrideV(),
+                m_size.width, m_size.height,
+                libyuv::kFilterBox);
+    }
 
     bool isParallelFrameComposition = m_parallelNum > 1 && m_layout.size() > 4;
 
@@ -602,8 +646,8 @@ void SoftFrameGenerator::clearText()
 
 DEFINE_LOGGER(SoftVideoCompositor, "mcu.media.SoftVideoCompositor");
 
-SoftVideoCompositor::SoftVideoCompositor(uint32_t maxInput, VideoSize rootSize, YUVColor bgColor, bool crop)
-    : m_maxInput(maxInput)
+SoftVideoCompositor::SoftVideoCompositor(uint32_t maxInput, VideoSize rootSize, YUVColor bgColor, const rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame, bool crop)
+    : m_maxInput(maxInput), m_bgFrame(bgFrame)
 {
     m_inputs.resize(m_maxInput);
     for (auto& input : m_inputs) {
@@ -613,8 +657,8 @@ SoftVideoCompositor::SoftVideoCompositor(uint32_t maxInput, VideoSize rootSize, 
     m_avatarManager.reset(new AvatarManager(maxInput));
 
     m_generators.resize(2);
-    m_generators[0].reset(new SoftFrameGenerator(this, rootSize, bgColor, crop, 60, 15));
-    m_generators[1].reset(new SoftFrameGenerator(this, rootSize, bgColor, crop, 48, 6));
+    m_generators[0].reset(new SoftFrameGenerator(this, rootSize, bgColor, bgFrame, crop, 60, 15));
+    m_generators[1].reset(new SoftFrameGenerator(this, rootSize, bgColor, bgFrame, crop, 48, 6));
 }
 
 SoftVideoCompositor::~SoftVideoCompositor()
@@ -640,6 +684,16 @@ void SoftVideoCompositor::updateLayoutSolution(LayoutSolution& solution)
 
     for (auto& generator : m_generators) {
         generator->updateLayoutSolution(solution);
+    }
+}
+
+void SoftVideoCompositor::updateSceneSolution(SceneSolution& solution)
+{
+    if(solution.layout)
+        assert(solution.layout->size() <= m_maxInput);
+
+    for (auto& generator : m_generators) {
+        generator->updateSceneSolution(solution);
     }
 }
 

@@ -22,6 +22,7 @@
 #include "FrameConverter.h"
 #include "VideoFrameMixer.h"
 #include "VideoLayout.h"
+#include "VideoScene.h"
 #include "I420BufferManager.h"
 #include "FFmpegDrawText.h"
 
@@ -94,6 +95,7 @@ public:
             SoftVideoCompositor *owner,
             owt_base::VideoSize &size,
             owt_base::YUVColor &bgColor,
+            const rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame,
             const bool crop,
             const uint32_t maxFps,
             const uint32_t minFps);
@@ -101,6 +103,7 @@ public:
     ~SoftFrameGenerator();
 
     void updateLayoutSolution(LayoutSolution& solution);
+    void updateSceneSolution(SceneSolution& solution);
 
     bool isSupported(uint32_t width, uint32_t height, uint32_t fps);
 
@@ -135,6 +138,8 @@ private:
     // configure
     owt_base::VideoSize     m_size;
     owt_base::YUVColor      m_bgColor;
+    rtc::scoped_refptr<webrtc::VideoFrameBuffer> m_bgFrame;
+
     bool                        m_crop;
 
     // reconfifure
@@ -166,7 +171,7 @@ class SoftVideoCompositor : public VideoFrameCompositor {
     friend class SoftFrameGenerator;
 
 public:
-    SoftVideoCompositor(uint32_t maxInput, owt_base::VideoSize rootSize, owt_base::YUVColor bgColor, bool crop);
+    SoftVideoCompositor(uint32_t maxInput, owt_base::VideoSize rootSize, owt_base::YUVColor bgColor, const rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame, bool crop);
     ~SoftVideoCompositor();
 
     bool activateInput(int input);
@@ -178,6 +183,7 @@ public:
     void updateRootSize(owt_base::VideoSize& rootSize);
     void updateBackgroundColor(owt_base::YUVColor& bgColor);
     void updateLayoutSolution(LayoutSolution& solution);
+    void updateSceneSolution(SceneSolution& solution);
 
     bool addOutput(const uint32_t width, const uint32_t height, const uint32_t framerateFPS, owt_base::FrameDestination *dst) override;
     bool removeOutput(owt_base::FrameDestination *dst) override;
@@ -195,6 +201,7 @@ private:
 
     std::vector<boost::shared_ptr<SoftInput>> m_inputs;
     boost::scoped_ptr<AvatarManager> m_avatarManager;
+    rtc::scoped_refptr<webrtc::VideoFrameBuffer> m_bgFrame;
 };
 
 }

@@ -29,6 +29,7 @@ void VideoMixer::Init(Handle<Object> exports, Handle<Object> module) {
   NODE_SET_PROTOTYPE_METHOD(tpl, "addOutput", addOutput);
   NODE_SET_PROTOTYPE_METHOD(tpl, "removeOutput", removeOutput);
   NODE_SET_PROTOTYPE_METHOD(tpl, "updateLayoutSolution", updateLayoutSolution);
+  NODE_SET_PROTOTYPE_METHOD(tpl, "updateSceneSolution", updateSceneSolution);
   NODE_SET_PROTOTYPE_METHOD(tpl, "forceKeyFrame", forceKeyFrame);
   NODE_SET_PROTOTYPE_METHOD(tpl, "drawText", drawText);
   NODE_SET_PROTOTYPE_METHOD(tpl, "clearText", clearText);
@@ -59,6 +60,17 @@ void VideoMixer::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
     config.bgColor.g = colorObj->Get(String::NewFromUtf8(isolate, "g"))->Int32Value(Nan::GetCurrentContext()).ToChecked();
     config.bgColor.b = colorObj->Get(String::NewFromUtf8(isolate, "b"))->Int32Value(Nan::GetCurrentContext()).ToChecked();
   }
+  Local<Value> backgroundimage = options->Get(String::NewFromUtf8(isolate, "backgroundimage"));
+  if (backgroundimage->IsObject()) {
+    Local<Object> obj = backgroundimage->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+    char* buffer = (char*) node::Buffer::Data(obj);
+    const size_t size = node::Buffer::Length(obj);
+
+    mcu::ImageData* imageData = new mcu::ImageData(size);
+    config.bgImage.reset(imageData);
+    memcpy(imageData->data, buffer, size);
+  }
+
   config.useGacc = options->Get(String::NewFromUtf8(isolate, "gaccplugin"))->ToBoolean(Nan::GetCurrentContext()).ToLocalChecked()->BooleanValue();
   config.MFE_timeout = options->Get(String::NewFromUtf8(isolate, "MFE_timeout"))->Int32Value(Nan::GetCurrentContext()).ToChecked();
 
@@ -237,6 +249,71 @@ void VideoMixer::updateLayoutSolution(const v8::FunctionCallbackInfo<v8::Value>&
   } else {
     args.GetReturnValue().Set(Boolean::New(isolate, false));
   }
+}
+
+void VideoMixer::updateSceneSolution(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+
+  VideoMixer* obj = ObjectWrap::Unwrap<VideoMixer>(args.Holder());
+  mcu::VideoMixer* me = obj->me;
+
+  if (args.Length() < 1 || !args[0]->IsObject()) {
+    args.GetReturnValue().Set(Boolean::New(isolate, false));
+    return;
+  }
+
+  Local<Object> jsSolution = args[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+  Local<Object> jsLayoutSolution = jsSolution->Get(String::NewFromUtf8(isolate, "layout"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+  mcu::SceneSolution solution;
+
+  Local<Value> jsBgImage = jsSolution->Get(String::NewFromUtf8(isolate, "bgImageData"));
+  if (jsBgImage->IsObject()) {
+    Local<Object> obj = jsBgImage->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+    char* buffer = (char*) node::Buffer::Data(obj);
+    const size_t size = node::Buffer::Length(obj);
+
+    mcu::ImageData* imageData = new mcu::ImageData(size);
+    solution.bgImage.reset(imageData);
+    memcpy(imageData->data, buffer, size);
+  }
+
+  if (jsLayoutSolution->IsArray()) {
+    solution.layout.reset(new mcu::LayoutSolution());
+    int length = jsLayoutSolution->Get(String::NewFromUtf8(isolate, "length"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Uint32Value(Nan::GetCurrentContext()).ToChecked();
+    for (int i = 0; i < length; i++) {
+      if (!jsLayoutSolution->Get(i)->IsObject())
+        continue;
+      Local<Object> jsInputRegion = jsLayoutSolution->Get(i)->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+      int input = jsInputRegion->Get(String::NewFromUtf8(isolate, "input"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+      Local<Object> regObj = jsInputRegion->Get(String::NewFromUtf8(isolate, "region"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+
+      mcu::Region region;
+      region.id = *String::Utf8Value(isolate, regObj->Get(String::NewFromUtf8(isolate, "id")));
+
+      Local<Value> area = regObj->Get(String::NewFromUtf8(isolate, "area"));
+      if (area->IsObject()) {
+        Local<Object> areaObj = area->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+        region.shape = *String::Utf8Value(isolate, regObj->Get(String::NewFromUtf8(isolate, "shape")));
+        if (region.shape == "rectangle") {
+          region.area.rect.left = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "left")));
+          region.area.rect.top = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "top")));
+          region.area.rect.width = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "width")));
+          region.area.rect.height = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "height")));
+        } else if (region.shape == "circle") {
+          region.area.circle.centerW = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "centerW")));
+          region.area.circle.centerH = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "centerH")));
+          region.area.circle.radius = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "radius")));
+        }
+      }
+
+      mcu::InputRegion inputRegion = { input, region };
+      solution.layout->push_back(inputRegion);
+    }
+  }
+
+  me->updateSceneSolution(solution);
+  args.GetReturnValue().Set(Boolean::New(isolate, true));
+
 }
 
 void VideoMixer::forceKeyFrame(const v8::FunctionCallbackInfo<v8::Value>& args) {

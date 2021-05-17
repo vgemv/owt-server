@@ -80,6 +80,10 @@ var ViewSchema = new Schema({
     maxInput: { type: Number, default: 16, min: 1, max: 256 },
     motionFactor: { type: Number, default: 0.8 },
     bgColor: { r: ColorRGB, g: ColorRGB, b: ColorRGB },
+    bgImageData: { type: Schema.Types.ObjectId, ref: 'Image' },                         // 背景图
+    bgImageUri: { type: String },                         // 背景图地址
+    overlays: [ { type: Schema.Types.ObjectId, ref: 'Overlay' } ],
+    layoutEffect: { type: String },                       // 转场效果
     keepActiveInputPrimary: { type: Boolean, default: false },
     layout: {
       //TODO: stretched?
@@ -98,6 +102,47 @@ var ViewSchema = new Schema({
 },
 { _id: false });
 
+var OverlaySchema = new Schema({
+  name:  { type: String, require: true },
+  imageData: { type: Schema.Types.ObjectId, ref: 'Image' }, // 默认图片
+  imageUri:  { type: String, require: true },
+  type:  { type: String, require: true }, // 文字类型标记为 text, 图片为 image
+  z:  { type: Number, require: true },
+  x:  { type: Number, require: true },
+  y:  { type: Number, require: true },
+  width:  { type: Number, require: true },
+  height:  { type: Number, require: true },
+  disabled:  { type: Boolean, default: false }
+});
+
+var ImageSchema = new Schema({
+  data:  { type: Buffer, require: true },
+  type:  { type: String, require: true }, // 文字类型标记为 text, 图片为 image
+  width:  { type: Number },
+  height:  { type: Number },
+  size:  { type: Number }
+});
+
+var StaticParticipantSchema = new Schema({
+  name: { type: String, require: true },
+  avatorData: { type: Schema.Types.ObjectId, ref: 'Image' }, // 默认图片
+  avatorUri: { type: String }, // 默认图片url
+  overlays: [ { type: Schema.Types.ObjectId, ref: 'Overlay' } ],
+  user: { type: String, require: true },
+  role: { type: String, require: true },
+  permission: {
+    publish: {
+      video: { type: Boolean, default: true },
+      audio: { type: Boolean, default: true }
+    },
+    subscribe: {
+      video: { type: Boolean, default: true },
+      audio: { type: Boolean, default: true }
+    }
+  },
+  disabled:  { type: Boolean, default: false }
+},
+{ _id: false });
 
 var RoomSchema = new Schema({
   name: {
@@ -117,7 +162,8 @@ var RoomSchema = new Schema({
     default: false
   },
   roles: [],
-  views: [ViewSchema],
+  staticParticipants: [ StaticParticipantSchema ],
+  views: [ ViewSchema ],
   mediaIn: {
     audio: [],
     video: []
@@ -174,6 +220,8 @@ var RoomSchema = new Schema({
 RoomSchema.set('toObject', { getters: true });
 
 RoomSchema.statics.ViewSchema = mongoose.model('View', ViewSchema);
+RoomSchema.statics.ImageSchema = mongoose.model('Image', ImageSchema);
+RoomSchema.statics.OverlaySchema = mongoose.model('Overlay', OverlaySchema);
 
 RoomSchema.statics.processLayout = function(room) {
   if (room && room.views) {

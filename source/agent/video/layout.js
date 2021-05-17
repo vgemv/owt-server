@@ -70,6 +70,7 @@ function LayoutProcessor(layouts) {
     this.inputList = [];
     this.currentRegions = [];
     this.layoutSolution = [];
+    this.sceneSolution = {};
 
     var self = this;
     var numOfRegions;
@@ -279,6 +280,26 @@ LayoutProcessor.prototype.setLayout = function(layout, on_ok, on_error) {
 
   on_ok(this.layoutSolution);
   this.emit('layoutChange', this.layoutSolution);
+};
+
+LayoutProcessor.prototype.setScene = function(scene, on_ok, on_error) {
+  log.debug('setScene, scene:', JSON.stringify(scene));
+  let layout = scene.layout;
+  this.templates = {};
+  this.maxCover = layout.length;
+  this.templates[layout.length] = layout.map((obj) => {return obj.region;});
+  this.currentRegions = this.templates[layout.length];
+
+  this.inputList = [];
+  this.sceneSolution = scene;
+  layout.forEach((obj) => {
+    if (obj.input !== undefined) {
+      this.inputList.push(obj.input);
+    }
+  });
+
+  on_ok(this.sceneSolution);
+  this.emit('sceneChange', this.sceneSolution);
 };
 
 exports.LayoutProcessor = LayoutProcessor;

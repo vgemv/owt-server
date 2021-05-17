@@ -55,6 +55,11 @@ VideoMixer::VideoMixer(const VideoMixerConfig& config)
         bgColor = DEFAULT_VIDEO_BG_COLOR;
     }
 
+    rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame;
+    if (ImageHelper::getVideoFrame(config.bgImage->data, config.bgImage->size, bgFrame) != 0){
+        ELOG_WARN("configured background image is invalid!");
+    }
+
 #ifdef ENABLE_MSDK
     MsdkBase *msdkBase = MsdkBase::get();
     if(msdkBase != NULL) {
@@ -65,7 +70,7 @@ VideoMixer::VideoMixer(const VideoMixerConfig& config)
 
     ELOG_INFO("Init maxInput(%u), rootSize(%u, %u), bgColor(%u, %u, %u)", m_maxInputCount, rootSize.width, rootSize.height, bgColor.y, bgColor.cb, bgColor.cr);
 
-    m_frameMixer.reset(new VideoFrameMixerImpl(m_maxInputCount, rootSize, bgColor, true, config.crop));
+    m_frameMixer.reset(new VideoFrameMixerImpl(m_maxInputCount, rootSize, bgColor, bgFrame, true, config.crop));
 }
 
 VideoMixer::~VideoMixer()
@@ -197,6 +202,39 @@ void VideoMixer::updateLayoutSolution(LayoutSolution& solution) {
     }
 
     m_frameMixer->updateLayoutSolution(solution);
+}
+
+void VideoMixer::updateSceneSolution(SceneSolution& solution) {
+
+    if(solution.layout) {
+        ELOG_DEBUG("updateSceneSolution, size(%ld)", solution.layout->size());
+        for (auto& l : *solution.layout) {
+            Region *pRegion = &l.region;
+
+            ELOG_DEBUG("input(%d): shape(%s), left(%d/%d), top(%d/%d), width(%d/%d), height(%d/%d)"
+                    , l.input
+                    , pRegion->shape.c_str()
+                    , pRegion->area.rect.left.numerator, pRegion->area.rect.left.denominator
+                    , pRegion->area.rect.top.numerator, pRegion->area.rect.top.denominator
+                    , pRegion->area.rect.width.numerator, pRegion->area.rect.width.denominator
+                    , pRegion->area.rect.height.numerator, pRegion->area.rect.height.denominator);
+
+            assert(pRegion->shape.compare("rectangle") == 0);
+            assert(pRegion->area.rect.left.denominator != 0 && pRegion->area.rect.left.denominator >= pRegion->area.rect.left.numerator);
+            assert(pRegion->area.rect.top.denominator != 0 && pRegion->area.rect.top.denominator >= pRegion->area.rect.top.numerator);
+            assert(pRegion->area.rect.width.denominator != 0 && pRegion->area.rect.width.denominator >= pRegion->area.rect.width.numerator);
+            assert(pRegion->area.rect.height.denominator != 0 && pRegion->area.rect.height.denominator >= pRegion->area.rect.height.numerator);
+
+            ELOG_TRACE("input(%d): left(%.2f), top(%.2f), width(%.2f), height(%.2f)"
+                    , l.input
+                    , (float)pRegion->area.rect.left.numerator / pRegion->area.rect.left.denominator
+                    , (float)pRegion->area.rect.top.numerator / pRegion->area.rect.top.denominator
+                    , (float)pRegion->area.rect.width.numerator / pRegion->area.rect.width.denominator
+                    , (float)pRegion->area.rect.height.numerator / pRegion->area.rect.height.denominator);
+        }
+    }
+
+    m_frameMixer->updateSceneSolution(solution);
 }
 
 void VideoMixer::drawText(const std::string& textSpec)
