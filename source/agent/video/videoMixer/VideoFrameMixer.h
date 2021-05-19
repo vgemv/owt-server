@@ -16,9 +16,12 @@ namespace mcu {
 // The composited I420VideoFrame will be handed over to one VideoFrameConsumer.
 class VideoFrameCompositor : public owt_base::FrameSource {
 public:
+    virtual bool addInput(int input) = 0;
+    virtual bool removeInput(int input) = 0;
     virtual bool activateInput(int input) = 0;
     virtual void deActivateInput(int input) = 0;
     virtual bool setAvatar(int input, const std::string& avatar) = 0;
+    virtual bool setAvatar(int input, boost::shared_ptr<ImageData> avatar) = 0;
     virtual bool unsetAvatar(int input) = 0;
     virtual void pushInput(int input, const owt_base::Frame&) = 0;
     virtual void updateLayoutSolution(LayoutSolution& solution) = 0;
@@ -36,6 +39,9 @@ public:
 class VideoFrameMixer {
 public:
     virtual bool addInput(int input, owt_base::FrameFormat, owt_base::FrameSource*, const std::string& avatar) = 0;
+    virtual bool addInput(int input, owt_base::FrameFormat, owt_base::FrameSource*, boost::shared_ptr<ImageData> avatar) = 0;
+    virtual bool setAvatar(int input, const std::string& avatar) = 0;
+    virtual bool setAvatar(int input, boost::shared_ptr<ImageData> avatar) = 0;
     virtual void removeInput(int input) = 0;
     virtual void setInputActive(int input, bool active) = 0;
 

@@ -156,6 +156,14 @@ const StreamUpdate = {
       }, {
         properties: {
           'op': { 'const': 'replace'},
+          'path': { 'const': '/info/scene'},
+          'value': {
+            type: 'object',
+          }
+        }
+      }, {
+        properties: {
+          'op': { 'const': 'replace'},
           'path': { 'const': '/info/layout'},
           'value': {
             type: 'array',

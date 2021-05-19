@@ -41,8 +41,11 @@ public:
     virtual ~VideoMixer();
 
     bool addInput(const int inputIndex, const std::string& codec, owt_base::FrameSource* source, const std::string& avatar);
+    bool addInput(const int inputIndex, const std::string& codec, owt_base::FrameSource* source, boost::shared_ptr<ImageData> avatar);
     void removeInput(const int inputIndex);
     void setInputActive(const int inputIndex, bool active);
+    bool setAvatar(const int inputIndex, const std::string& avatar);
+    bool setAvatar(const int inputIndex, boost::shared_ptr<ImageData> avatar);
     bool addOutput(const std::string& outStreamID
             , const std::string& codec
             , const owt_base::VideoCodecProfile profile

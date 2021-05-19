@@ -19,6 +19,23 @@ function generateBufferFromBase64(roomOption) {
   }
 }
 
+async function saveImage(roomOption) {
+
+  if (roomOption.staticParticipants && roomOption.staticParticipants.forEach) {
+    for(let i in roomOption.staticParticipants) {
+      let item = roomOption.staticParticipants[i];
+      if(item.avatarData){
+        let data = new Buffer(item.avatarData, "base64");
+        let image = new Room.ImageSchema({data});
+        let savedImage = await image.save();
+        item.avatarData = savedImage._id;
+      }
+    };
+  }
+
+  return roomOption;
+}
+
 function getAudioOnlyLabels(roomOption) {
   var labels = [];
   if (roomOption.views && roomOption.views.forEach) {
@@ -92,7 +109,7 @@ const removeNull = (obj) => {
 /*
  * Create Room.
  */
-exports.create = function (serviceId, roomOption, callback) {
+exports.create = async function (serviceId, roomOption, callback) {
   var attr;
   for (attr in Default.ROOM_CONFIG) {
     if (!roomOption[attr]) {
@@ -101,7 +118,7 @@ exports.create = function (serviceId, roomOption, callback) {
   }
 
   removeNull(roomOption);
-  //generateBufferFromBase64(roomOption);
+  await saveImage(roomOption);
 
   var labels = getAudioOnlyLabels(roomOption);
   var room = new Room(roomOption);
@@ -217,7 +234,7 @@ exports.update = function (serviceId, roomId, updates, callback) {
  */
 exports.config = function (roomId) {
   return new Promise((resolve, reject) => {
-    Room.findById(roomId, function (err, room) {
+    Room.findById(roomId).populate("staticParticipants.avatarData").exec( function (err, room) {
       if (err || !room) {
         reject(err);
       } else {

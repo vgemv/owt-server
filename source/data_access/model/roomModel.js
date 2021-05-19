@@ -117,7 +117,7 @@ var OverlaySchema = new Schema({
 
 var ImageSchema = new Schema({
   data:  { type: Buffer, require: true },
-  type:  { type: String, require: true }, // 文字类型标记为 text, 图片为 image
+  type:  { type: String }, // 文字类型标记为 text, 图片为 image
   width:  { type: Number },
   height:  { type: Number },
   size:  { type: Number }
@@ -125,8 +125,8 @@ var ImageSchema = new Schema({
 
 var StaticParticipantSchema = new Schema({
   name: { type: String, require: true },
-  avatorData: { type: Schema.Types.ObjectId, ref: 'Image' }, // 默认图片
-  avatorUri: { type: String }, // 默认图片url
+  avatarData: { type: Schema.Types.ObjectId, ref: 'Image' }, // 默认图片
+  avatarUri: { type: String }, // 默认图片url
   overlays: [ { type: Schema.Types.ObjectId, ref: 'Overlay' } ],
   user: { type: String, require: true },
   role: { type: String, require: true },
@@ -143,6 +143,35 @@ var StaticParticipantSchema = new Schema({
   disabled:  { type: Boolean, default: false }
 },
 { _id: false });
+
+
+var SceneSchema = new Schema({
+  name: { type: String, require: true },
+  bgColor: { r: ColorRGB, g: ColorRGB, b: ColorRGB },
+  bgImageData: { type: Schema.Types.ObjectId, ref: 'Image' },                         // 背景图
+  bgImageUri: { type: String },                         // 背景图地址
+  preview: { type: Schema.Types.ObjectId, ref: 'Image' }, // 默认图片
+  overlays: [ { type: Schema.Types.ObjectId, ref: 'Overlay' } ],
+  layout: {
+    //TODO: stretched?
+    fitPolicy: { type: String, enum: ['letterbox', 'crop'], default: 'letterbox' },
+    setRegionEffect: { type: String },
+    templates: {
+      base: { type: String, enum: ['fluid', 'lecture', 'void'], default: 'fluid' },
+      custom: [{
+        _id: false,
+        primary: { type: String },
+        region: [ Region ]
+      }]
+    }
+  }
+});
+
+var OverlayTemplateSchema = new Schema({
+  name: { type: String, require: true },
+  editable: { type: Boolean },
+  overlays: [ { type: Schema.Types.ObjectId, ref: 'OverlayTemplate' } ]
+});
 
 var RoomSchema = new Schema({
   name: {
@@ -163,6 +192,7 @@ var RoomSchema = new Schema({
   },
   roles: [],
   staticParticipants: [ StaticParticipantSchema ],
+  scenes: [ SceneSchema ],
   views: [ ViewSchema ],
   mediaIn: {
     audio: [],
@@ -222,6 +252,7 @@ RoomSchema.set('toObject', { getters: true });
 RoomSchema.statics.ViewSchema = mongoose.model('View', ViewSchema);
 RoomSchema.statics.ImageSchema = mongoose.model('Image', ImageSchema);
 RoomSchema.statics.OverlaySchema = mongoose.model('Overlay', OverlaySchema);
+RoomSchema.statics.OverlayTemplateSchema = mongoose.model('OverlayTemplate', OverlayTemplateSchema);
 
 RoomSchema.statics.processLayout = function(room) {
   if (room && room.views) {

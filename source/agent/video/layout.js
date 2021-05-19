@@ -63,7 +63,7 @@ Region.prototype.validate = function() {
  * @extends EventEmitter
  * @param {Region[][]} layouts: the array of layouts templates
  */
-function LayoutProcessor(layouts) {
+function LayoutProcessor(layouts, staticInputNum) {
     EventEmitter.call(this);
     this.templates = {};
     this.maxCover = 0;
@@ -71,6 +71,7 @@ function LayoutProcessor(layouts) {
     this.currentRegions = [];
     this.layoutSolution = [];
     this.sceneSolution = {};
+    this.staticInputNum = staticInputNum || 0;
 
     var self = this;
     var numOfRegions;
@@ -97,6 +98,16 @@ function LayoutProcessor(layouts) {
     }
 }
 util.inherits(LayoutProcessor, EventEmitter);
+
+LayoutProcessor.prototype.setStaticInputNum = function(num) {
+    this.staticInputNum = num;
+    this.inputList = [];
+    for(let i=0; i<num; i++){
+        this.inputList.push(i);
+    }
+    this.choseTemplate(this.inputList.length);
+    this.updateInputPositions();
+}
 
 /**
  * @function addInput
@@ -126,6 +137,9 @@ LayoutProcessor.prototype.addInput = function(inputId, front) {
  * @return {void}
  */
 LayoutProcessor.prototype.removeInput = function(inputId) {
+    if(inputId < this.staticInputNum)
+        return; // can't remove static
+        
     var pos = this.inputList.indexOf(inputId);
     if (pos >= 0) {
         this.inputList.splice(pos, 1);
@@ -286,17 +300,19 @@ LayoutProcessor.prototype.setScene = function(scene, on_ok, on_error) {
   log.debug('setScene, scene:', JSON.stringify(scene));
   let layout = scene.layout;
   this.templates = {};
-  this.maxCover = layout.length;
-  this.templates[layout.length] = layout.map((obj) => {return obj.region;});
-  this.currentRegions = this.templates[layout.length];
+  if(layout){
+    this.maxCover = layout.length;
+    this.templates[layout.length] = layout.map((obj) => {return obj.region;});
+    this.currentRegions = this.templates[layout.length];
 
-  this.inputList = [];
+    this.inputList = [];
+    layout.forEach((obj) => {
+        if (obj.input !== undefined) {
+            this.inputList.push(obj.input);
+        }
+    });
+  }
   this.sceneSolution = scene;
-  layout.forEach((obj) => {
-    if (obj.input !== undefined) {
-      this.inputList.push(obj.input);
-    }
-  });
 
   on_ok(this.sceneSolution);
   this.emit('sceneChange', this.sceneSolution);

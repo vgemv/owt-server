@@ -56,8 +56,10 @@ VideoMixer::VideoMixer(const VideoMixerConfig& config)
     }
 
     rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame;
-    if (ImageHelper::getVideoFrame(config.bgImage->data, config.bgImage->size, bgFrame) != 0){
-        ELOG_WARN("configured background image is invalid!");
+    if(config.bgImage){
+        if (ImageHelper::getVideoFrame(config.bgImage->data, config.bgImage->size, bgFrame) != 0){
+            ELOG_WARN("configured background image is invalid!");
+        }
     }
 
 #ifdef ENABLE_MSDK
@@ -97,6 +99,37 @@ bool VideoMixer::addInput(const int inputIndex, const std::string& codec, owt_ba
     }
     ELOG_WARN("addInput fail for inputIndex:%d", inputIndex);
     return false;
+}
+
+bool VideoMixer::addInput(const int inputIndex, const std::string& codec, owt_base::FrameSource* source, boost::shared_ptr<ImageData> avatar)
+{
+    if (m_inputs.find(inputIndex) != m_inputs.end()) {
+        ELOG_WARN("addInput already exist:%d", inputIndex);
+        return false;
+    }
+    if (m_inputs.size() >= m_maxInputCount) {
+        ELOG_WARN("addInput reach max input");
+        return false;
+    }
+
+    owt_base::FrameFormat format = getFormat(codec);
+
+    if (m_frameMixer->addInput(inputIndex, format, source, avatar)) {
+        m_inputs.insert(inputIndex);
+        return true;
+    }
+    ELOG_WARN("addInput fail for inputIndex:%d", inputIndex);
+    return false;
+}
+
+bool VideoMixer::setAvatar(const int inputIndex, const std::string& avatar)
+{
+    return m_frameMixer->setAvatar(inputIndex, avatar);
+}
+
+bool VideoMixer::setAvatar(const int inputIndex, boost::shared_ptr<ImageData> avatar)
+{
+    return m_frameMixer->setAvatar(inputIndex, avatar);
 }
 
 void VideoMixer::removeInput(const int inputIndex)

@@ -39,6 +39,10 @@ public:
         m_compositor->activateInput(m_index);
         m_compositor->setAvatar(m_index, avatar);
     }
+    CompositeIn(int index, boost::shared_ptr<mcu::ImageData> avatar, boost::shared_ptr<VideoFrameCompositor> compositor) : m_index(index), m_compositor(compositor) {
+        m_compositor->activateInput(m_index);
+        m_compositor->setAvatar(m_index, avatar);
+    }
 
     virtual ~CompositeIn() {
         m_compositor->unsetAvatar(m_index);
@@ -60,6 +64,10 @@ public:
     ~VideoFrameMixerImpl();
 
     bool addInput(int input, owt_base::FrameFormat, owt_base::FrameSource*, const std::string& avatar);
+    bool addInput(int input, owt_base::FrameFormat, owt_base::FrameSource*, boost::shared_ptr<ImageData> avatar);
+    bool addInput(int input, owt_base::FrameFormat, owt_base::FrameSource*, boost::shared_ptr<CompositeIn> compositeIn);
+    bool setAvatar(int input, const std::string& avatar);
+    bool setAvatar(int input, boost::shared_ptr<ImageData> avatar);
     void removeInput(int input);
     void setInputActive(int input, bool active);
 
@@ -140,8 +148,8 @@ VideoFrameMixerImpl::~VideoFrameMixerImpl()
     m_compositor.reset();
 }
 
-inline bool VideoFrameMixerImpl::addInput(int input, owt_base::FrameFormat format, owt_base::FrameSource* source, const std::string& avatar)
-{
+inline bool VideoFrameMixerImpl::addInput(int input, owt_base::FrameFormat format, owt_base::FrameSource* source, boost::shared_ptr<CompositeIn> compositorIn){
+
     assert(source);
 
     boost::upgrade_lock<boost::shared_mutex> lock(m_inputMutex);
@@ -166,7 +174,6 @@ inline bool VideoFrameMixerImpl::addInput(int input, owt_base::FrameFormat forma
         return false;
 
     if (decoder->init(format)) {
-        boost::shared_ptr<CompositeIn> compositorIn(new CompositeIn(input, avatar, m_compositor));
 
         source->addVideoDestination(decoder.get());
         decoder->addVideoDestination(compositorIn.get());
@@ -174,10 +181,35 @@ inline bool VideoFrameMixerImpl::addInput(int input, owt_base::FrameFormat forma
         boost::upgrade_to_unique_lock<boost::shared_mutex> uniqueLock(lock);
         Input in{.source = source, .decoder = decoder, .compositorIn = compositorIn};
         m_inputs[input] = in;
+
+        m_compositor->addInput(input);
+
         return true;
     }
 
     return false;
+}
+
+inline bool VideoFrameMixerImpl::addInput(int input, owt_base::FrameFormat format, owt_base::FrameSource* source, const std::string& avatar)
+{
+    boost::shared_ptr<CompositeIn> compositorIn(new CompositeIn(input, avatar, m_compositor));
+    return addInput(input, format, source, compositorIn);
+}
+
+inline bool VideoFrameMixerImpl::addInput(int input, owt_base::FrameFormat format, owt_base::FrameSource* source, boost::shared_ptr<mcu::ImageData> avatar)
+{
+    boost::shared_ptr<CompositeIn> compositorIn(new CompositeIn(input, avatar, m_compositor));
+    return addInput(input, format, source, compositorIn);
+}
+
+inline bool VideoFrameMixerImpl::setAvatar(int input, const std::string& avatar)
+{
+    return m_compositor->setAvatar(input, avatar);
+}
+
+inline bool VideoFrameMixerImpl::setAvatar(int input, boost::shared_ptr<ImageData> avatar) 
+{
+    return m_compositor->setAvatar(input, avatar);
 }
 
 inline void VideoFrameMixerImpl::removeInput(int input)
@@ -190,6 +222,7 @@ inline void VideoFrameMixerImpl::removeInput(int input)
         it->second.compositorIn.reset();
         boost::upgrade_to_unique_lock<boost::shared_mutex> uniqueLock(lock);
         m_inputs.erase(it);
+        m_compositor->removeInput(input);
     }
 }
 

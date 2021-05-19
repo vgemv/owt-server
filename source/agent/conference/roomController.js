@@ -328,6 +328,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                     // Initialize mixer engine for each view
                     mix_views[viewLabel] = {};
 
+
+                    viewSettings.video && (viewSettings.video.staticParticipants = config.staticParticipants);
                     // Save view init promises
                     viewProcessed.push(new Promise(function(resolve, reject) {
                         initView(viewLabel, viewSettings,
@@ -459,6 +461,10 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             || terminals[terminal_id].type === 'aselect');
     };
 
+    var streamIdToStaticInputId = function (stream_id) {
+        return streams[stream_id].inputId;
+    }
+
     var spreadStream = function (stream_id, target_node, target_node_type, on_ok, on_error) {
         log.debug('spreadStream, stream_id:', stream_id, 'target_node:', target_node, 'target_node_type:', target_node_type);
 
@@ -561,6 +567,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                         {
                             controller: selfRpcId,
                             publisher: publisher,
+                            inputId: streamIdToStaticInputId(stream_id),
                             audio: (audio ? {codec: streams[stream_id].audio.format} : false),
                             video: (video ? {codec: streams[stream_id].video.format} : false),
                             data: data,
@@ -1499,6 +1506,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             var terminal_owner = (streamType === 'webrtc' || streamType === 'sip' || streamType === 'quic') ? participantId : room_id + '-' + randomId();
             newTerminal(terminal_id, streamType, terminal_owner, accessNode, streamInfo.origin, function () {
                 streams[streamId] = {owner: terminal_id,
+                                     inputId: streamInfo.inputId,
                                      audio: streamInfo.media.audio ? {format: formatStr(streamInfo.media.audio),
                                                                 subscribers: [],
                                                                 status: 'active'} : undefined,
@@ -2016,6 +2024,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
 
     var initVideoMixer = function (vmixerId, view) {
         var videoMixingConfig = getViewMixingConfig(view).video;
+        videoMixingConfig.staticParticipants = config.staticParticipants;
         return initMediaProcessor(vmixerId, ['mixing', videoMixingConfig, room_id, selfRpcId, view])
             .then(function (supportedVideo) {
                 log.debug('Init video mixer ok. room_id:', room_id, 'vmixer_id:', vmixerId, 'view:', view);

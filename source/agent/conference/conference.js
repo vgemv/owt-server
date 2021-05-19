@@ -617,6 +617,12 @@ var Conference = function (rpcClient, selfRpcId) {
     return Promise.resolve('ok');
   };
 
+  const participantIdToInputId = function(participantId) {
+    if(!room_config.staticParticipants)return -1;
+    let user = participants[participantId].getInfo().user;
+    return room_config.staticParticipants.findIndex(o=>o.user==user);
+  }
+
   const addStream = (id, locality, transport, media, data, info) => {
     info.origin = streams[id] ? streams[id].info.origin : {isp:"isp", region:"region"};
     if (info.analytics && subscriptions[info.analytics]) {
@@ -647,7 +653,7 @@ var Conference = function (rpcClient, selfRpcId) {
     if (info.type === 'webrtc' || info.type === 'quic') {
       const pubs = pubArgs.map(pubArg => new Promise((resolve, reject) => {
         roomController && roomController.publish(
-          pubArg.owner, pubArg.id, pubArg.locality, {origin: pubArg.media.origin, media:pubArg.media, data:pubArg.data}, pubArg.type, resolve, reject);
+          pubArg.owner, pubArg.id, pubArg.locality, {inputId:participantIdToInputId(pubArg.owner), origin: pubArg.media.origin, media:pubArg.media, data:pubArg.data}, pubArg.type, resolve, reject);
       }));
       return Promise.all(pubs).then(() => {
         if (participants[info.owner]) {
@@ -683,7 +689,7 @@ var Conference = function (rpcClient, selfRpcId) {
     const pubArg = pubArgs[0];
     return new Promise((resolve, reject) => {
       roomController && roomController.publish(
-        pubArg.owner, pubArg.id, pubArg.locality, {origin: pubArg.media.origin, media:pubArg.media, data:pubArg.data}, pubArg.type,
+        pubArg.owner, pubArg.id, pubArg.locality, {inputId:participantIdToInputId(pubArg.owner), origin: pubArg.media.origin, media:pubArg.media, data:pubArg.data}, pubArg.type,
         function() {
           if (participants[info.owner]) {
             streams[id] = fwdStream;
@@ -1033,7 +1039,6 @@ var Conference = function (rpcClient, selfRpcId) {
     }
     return rtcSubInfo;
   };
-
 
   that.publish = function(participantId, streamId, pubInfo, callback) {
     log.debug('publish, participantId:', participantId, 'streamId:', streamId, 'pubInfo:', JSON.stringify(pubInfo));
@@ -2327,11 +2332,12 @@ var Conference = function (rpcClient, selfRpcId) {
                   } else if (!region_ok) {
                     exe = Promise.reject('Invalid region');
                   } else {
-                    exe = setScene(streamId, cmd.value);
                   }
                 } else {
-                  exe = Promise.reject('Invalid value');
+                  // exe = Promise.reject('Invalid value');
                 }
+                if(!exe)
+                  exe = setScene(streamId, cmd.value);
               } else {
                 exe = Promise.reject('Not mixed stream');
               }

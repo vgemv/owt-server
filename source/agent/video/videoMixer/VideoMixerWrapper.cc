@@ -24,6 +24,7 @@ void VideoMixer::Init(Handle<Object> exports, Handle<Object> module) {
   // Prototype
   NODE_SET_PROTOTYPE_METHOD(tpl, "close", close);
   NODE_SET_PROTOTYPE_METHOD(tpl, "addInput", addInput);
+  NODE_SET_PROTOTYPE_METHOD(tpl, "setAvatar", setAvatar);
   NODE_SET_PROTOTYPE_METHOD(tpl, "removeInput", removeInput);
   NODE_SET_PROTOTYPE_METHOD(tpl, "setInputActive", setInputActive);
   NODE_SET_PROTOTYPE_METHOD(tpl, "addOutput", addOutput);
@@ -77,6 +78,25 @@ void VideoMixer::New(const v8::FunctionCallbackInfo<v8::Value>& args) {
   VideoMixer* obj = new VideoMixer();
   obj->me = new mcu::VideoMixer(config);
 
+
+  Local<Value> avatarsVal = options->Get(String::NewFromUtf8(isolate, "avatars"));//->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+  if (avatarsVal->IsArray()) {
+    Local<Object> avatars = avatarsVal->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+    int length = avatars->Get(String::NewFromUtf8(isolate, "length"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Uint32Value(Nan::GetCurrentContext()).ToChecked();
+    for (int i = 0; i < length; i++) {
+      if (!avatars->Get(i)->IsObject())
+        continue;
+      Local<Object> imageObj = avatars->Get(i)->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+      char* buffer = (char*) node::Buffer::Data(imageObj);
+      const size_t size = node::Buffer::Length(imageObj);
+
+      mcu::ImageData* imageData = new mcu::ImageData(size);
+      memcpy(imageData->data, buffer, size);
+      boost::shared_ptr<mcu::ImageData> image(imageData);
+      obj->me->setAvatar(i, image);
+    }
+  }
+
   obj->Wrap(args.This());
   args.GetReturnValue().Set(args.This());
 }
@@ -105,13 +125,34 @@ void VideoMixer::addInput(const v8::FunctionCallbackInfo<v8::Value>& args) {
   FrameSource* param2 = ObjectWrap::Unwrap<FrameSource>(args[2]->ToObject(Nan::GetCurrentContext()).ToLocalChecked());
   owt_base::FrameSource* src = param2->src;
 
-  // Set avatar data
-  String::Utf8Value param3(isolate, args[3]->ToString());
-  std::string avatarData = std::string(*param3);
+  if(args[3]->IsString()){
+      // Set avatar data
+    String::Utf8Value param3(isolate, args[3]->ToString());
+    std::string avatarData = std::string(*param3);
+    int r = me->addInput(inputIndex, codec, src, avatarData);
+    args.GetReturnValue().Set(Number::New(isolate, r));
 
-  int r = me->addInput(inputIndex, codec, src, avatarData);
+  } else if(args[3]->IsObject()) {
 
-  args.GetReturnValue().Set(Number::New(isolate, r));
+    Local<Object> obj = args[3]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+    char* buffer = (char*) node::Buffer::Data(obj);
+    const size_t size = node::Buffer::Length(obj);
+
+    mcu::ImageData* imageData = new mcu::ImageData(size);
+    boost::shared_ptr<mcu::ImageData> image(imageData);
+    memcpy(imageData->data, buffer, size);
+
+    int r = me->addInput(inputIndex, codec, src, image);
+
+    args.GetReturnValue().Set(Number::New(isolate, r));
+  } else {
+
+    int r = me->addInput(inputIndex, codec, src, "");
+    args.GetReturnValue().Set(Number::New(isolate, r));
+
+  }
+
+
 }
 
 void VideoMixer::removeInput(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -123,6 +164,36 @@ void VideoMixer::removeInput(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
   int inputIndex = args[0]->Int32Value(Nan::GetCurrentContext()).ToChecked();
   me->removeInput(inputIndex);
+}
+
+void VideoMixer::setAvatar(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+
+  VideoMixer* obj = ObjectWrap::Unwrap<VideoMixer>(args.Holder());
+  mcu::VideoMixer* me = obj->me;
+
+  int inputIndex = args[0]->Int32Value(Nan::GetCurrentContext()).ToChecked();
+  if(args[1]->IsString()){
+      // Set avatar data
+    String::Utf8Value param3(isolate, args[1]->ToString());
+    std::string avatarData = std::string(*param3);
+    auto r = me->setAvatar(inputIndex, avatarData);
+    args.GetReturnValue().Set(Boolean::New(isolate, r));
+
+  } else if(args[1]->IsObject()) {
+
+    Local<Object> obj = args[1]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+    char* buffer = (char*) node::Buffer::Data(obj);
+    const size_t size = node::Buffer::Length(obj);
+
+    mcu::ImageData* imageData = new mcu::ImageData(size);
+    boost::shared_ptr<mcu::ImageData> image(imageData);
+    memcpy(imageData->data, buffer, size);
+
+    auto r = me->setAvatar(inputIndex, image);
+    args.GetReturnValue().Set(Boolean::New(isolate, r));
+  }
 }
 
 void VideoMixer::setInputActive(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -263,7 +334,6 @@ void VideoMixer::updateSceneSolution(const v8::FunctionCallbackInfo<v8::Value>& 
   }
 
   Local<Object> jsSolution = args[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
-  Local<Object> jsLayoutSolution = jsSolution->Get(String::NewFromUtf8(isolate, "layout"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
   mcu::SceneSolution solution;
 
   Local<Value> jsBgImage = jsSolution->Get(String::NewFromUtf8(isolate, "bgImageData"));
@@ -277,37 +347,40 @@ void VideoMixer::updateSceneSolution(const v8::FunctionCallbackInfo<v8::Value>& 
     memcpy(imageData->data, buffer, size);
   }
 
-  if (jsLayoutSolution->IsArray()) {
-    solution.layout.reset(new mcu::LayoutSolution());
-    int length = jsLayoutSolution->Get(String::NewFromUtf8(isolate, "length"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Uint32Value(Nan::GetCurrentContext()).ToChecked();
-    for (int i = 0; i < length; i++) {
-      if (!jsLayoutSolution->Get(i)->IsObject())
-        continue;
-      Local<Object> jsInputRegion = jsLayoutSolution->Get(i)->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
-      int input = jsInputRegion->Get(String::NewFromUtf8(isolate, "input"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
-      Local<Object> regObj = jsInputRegion->Get(String::NewFromUtf8(isolate, "region"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+  if(jsSolution->Has(String::NewFromUtf8(isolate, "layout"))) { 
+    Local<Object> jsLayoutSolution = jsSolution->Get(String::NewFromUtf8(isolate, "layout"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+    if (jsLayoutSolution->IsArray()) {
+      solution.layout.reset(new mcu::LayoutSolution());
+      int length = jsLayoutSolution->Get(String::NewFromUtf8(isolate, "length"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Uint32Value(Nan::GetCurrentContext()).ToChecked();
+      for (int i = 0; i < length; i++) {
+        if (!jsLayoutSolution->Get(i)->IsObject())
+          continue;
+        Local<Object> jsInputRegion = jsLayoutSolution->Get(i)->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+        int input = jsInputRegion->Get(String::NewFromUtf8(isolate, "input"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+        Local<Object> regObj = jsInputRegion->Get(String::NewFromUtf8(isolate, "region"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
 
-      mcu::Region region;
-      region.id = *String::Utf8Value(isolate, regObj->Get(String::NewFromUtf8(isolate, "id")));
+        mcu::Region region;
+        region.id = *String::Utf8Value(isolate, regObj->Get(String::NewFromUtf8(isolate, "id")));
 
-      Local<Value> area = regObj->Get(String::NewFromUtf8(isolate, "area"));
-      if (area->IsObject()) {
-        Local<Object> areaObj = area->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
-        region.shape = *String::Utf8Value(isolate, regObj->Get(String::NewFromUtf8(isolate, "shape")));
-        if (region.shape == "rectangle") {
-          region.area.rect.left = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "left")));
-          region.area.rect.top = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "top")));
-          region.area.rect.width = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "width")));
-          region.area.rect.height = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "height")));
-        } else if (region.shape == "circle") {
-          region.area.circle.centerW = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "centerW")));
-          region.area.circle.centerH = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "centerH")));
-          region.area.circle.radius = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "radius")));
+        Local<Value> area = regObj->Get(String::NewFromUtf8(isolate, "area"));
+        if (area->IsObject()) {
+          Local<Object> areaObj = area->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+          region.shape = *String::Utf8Value(isolate, regObj->Get(String::NewFromUtf8(isolate, "shape")));
+          if (region.shape == "rectangle") {
+            region.area.rect.left = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "left")));
+            region.area.rect.top = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "top")));
+            region.area.rect.width = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "width")));
+            region.area.rect.height = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "height")));
+          } else if (region.shape == "circle") {
+            region.area.circle.centerW = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "centerW")));
+            region.area.circle.centerH = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "centerH")));
+            region.area.circle.radius = parseRational(isolate, areaObj->Get(String::NewFromUtf8(isolate, "radius")));
+          }
         }
-      }
 
-      mcu::InputRegion inputRegion = { input, region };
-      solution.layout->push_back(inputRegion);
+        mcu::InputRegion inputRegion = { input, region };
+        solution.layout->push_back(inputRegion);
+      }
     }
   }
 

@@ -37,6 +37,7 @@ public:
     ~AvatarManager();
 
     bool setAvatar(uint8_t index, const std::string &url);
+    bool setAvatar(uint8_t index, boost::shared_ptr<ImageData> frame);
     bool unsetAvatar(uint8_t index);
 
     boost::shared_ptr<webrtc::VideoFrame> getAvatarFrame(uint8_t index);
@@ -50,6 +51,7 @@ private:
 
     std::map<uint8_t, std::string> m_inputs;
     std::map<std::string, boost::shared_ptr<webrtc::VideoFrame>> m_frames;
+    std::map<uint8_t, boost::shared_ptr<webrtc::VideoFrame>> m_indexedFrames;
 
     boost::shared_mutex m_mutex;
 };
@@ -63,12 +65,15 @@ public:
 
     void setActive(bool active);
     bool isActive(void);
+    void setConnected(bool connected);
+    bool isConnected(void);
 
     void pushInput(webrtc::VideoFrame *videoFrame);
     boost::shared_ptr<webrtc::VideoFrame> popInput();
 
 private:
     bool m_active;
+    bool m_connected;
     boost::shared_ptr<webrtc::VideoFrame> m_busyFrame;
     boost::shared_mutex m_mutex;
 
@@ -142,8 +147,12 @@ private:
 
     bool                        m_crop;
 
+    std::list<Overlay>          m_overlays;
+    std::map<std::string,std::list<Overlay>>          m_input_overlays;
+
     // reconfifure
     LayoutSolution              m_layout;
+    LayoutSolution              m_oldLayout;
     LayoutSolution              m_newLayout;
     bool                        m_configureChanged;
     boost::shared_mutex         m_configMutex;
@@ -174,9 +183,12 @@ public:
     SoftVideoCompositor(uint32_t maxInput, owt_base::VideoSize rootSize, owt_base::YUVColor bgColor, const rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame, bool crop);
     ~SoftVideoCompositor();
 
+    bool addInput(int input);
+    bool removeInput(int input);
     bool activateInput(int input);
     void deActivateInput(int input);
     bool setAvatar(int input, const std::string& avatar);
+    bool setAvatar(int input, boost::shared_ptr<ImageData> avatar);
     bool unsetAvatar(int input);
     void pushInput(int input, const owt_base::Frame&);
 
@@ -196,10 +208,13 @@ protected:
 
 private:
     uint32_t m_maxInput;
+    uint32_t m_maxStaticInput;
 
     std::vector<boost::shared_ptr<SoftFrameGenerator>> m_generators;
 
+    std::vector<boost::shared_ptr<SoftInput>> m_staticInputs;
     std::vector<boost::shared_ptr<SoftInput>> m_inputs;
+    boost::scoped_ptr<AvatarManager> m_staticAvatarManager;
     boost::scoped_ptr<AvatarManager> m_avatarManager;
     rtc::scoped_refptr<webrtc::VideoFrameBuffer> m_bgFrame;
 };

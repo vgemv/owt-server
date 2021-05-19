@@ -52,9 +52,14 @@ var servicesResource = require('./resource/servicesResource');
 var serviceResource = require('./resource/serviceResource');
 
 // parse application/x-www-form-urlencoded
-app.use(bodyParser.urlencoded({ extended: true }))
+// app.use(bodyParser.urlencoded({ extended: true }))
+app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
 // parse application/json
-app.use(bodyParser.json())
+// app.use(bodyParser.json())
+app.use(bodyParser.json({limit: '50mb'}));
+
+// app.use(express.bodyParser({limit: '50mb'}));
+
 
 // for CORS
 app.use(function (req, res, next) {

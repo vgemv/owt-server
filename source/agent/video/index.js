@@ -45,11 +45,12 @@ const colorMap = {
 
 class InputManager {
 
-    constructor(maxInput) {
+    constructor(maxInput, staticInput) {
         // Key: stream ID, Value: input-object
         this.inputs = {};
         this.pendingInputs = {};
         this.freeIndex = [];
+        this.staticInput = staticInput || 0;
 
         // Default to 100 if not specified
         if (typeof maxInput !== 'number' || maxInput <= 0) maxInput = 100;
@@ -61,6 +62,10 @@ class InputManager {
 
     reset(maxInput) {
       constructor(maxInput);
+    }
+
+    setStaticInput(num) {
+        this.staticInput = num;
     }
 
     // Has the streamId
@@ -76,12 +81,44 @@ class InputManager {
         return (this.inputs[streamId] || this.pendingInputs[streamId]);
     }
 
-    add(streamId, codec, conn, avatar) {
+    set(streamId, inputId, codec, conn, avatar) {
         if (this.inputs[streamId])
             return -1;
 
+        let inputIdIdx = this.freeIndex.findIndex(o=>o==inputId);
+        if(inputIdIdx == -1)
+            return -1;
+
+        this.freeIndex.splice(inputIdIdx,1);
+
         var input = {
-            id: this.freeIndex.pop(),
+            id: inputId,
+            codec: codec,
+            conn: conn,
+            avatar: avatar,
+            primaryCount: 0
+        };
+        if (input.id === undefined) {
+            this.pendingInputs[streamId] = input;
+            return -1;
+        } else {
+            this.inputs[streamId] = input;
+            return input.id;
+        }
+    }
+
+    add(streamId, codec, conn, avatar) {
+        if (this.inputs[streamId])
+            return -1;
+        let inputIdIdx = this.freeIndex.findIndex(o=>o>=this.staticInput);
+        let inputId;
+        if(inputIdIdx >= 0){
+            inputId = this.freeIndex[inputIdIdx];
+            this.freeIndex.splice(inputIdIdx,1);
+        }
+
+        var input = {
+            id: inputId,
             codec: codec,
             conn: conn,
             avatar: avatar,
@@ -206,6 +243,7 @@ function VMixer(rpcClient, clusterIP) {
         /*{StreamID : InternalIn}*/
         inputManager,
         maxInputNum = 0,
+        staticParticipants = [],
 
         /*{ConnectionID: {video: StreamID | undefined,
                           connection: InternalOut}
@@ -229,7 +267,10 @@ function VMixer(rpcClient, clusterIP) {
             // Use default avatar if it is not set
             avatar = avatar || global.config.avatar.location;
 
-            let inputId = inputManager.add(stream_id, codec, conn, avatar);
+            let inputId = options.inputId >= 0? 
+                inputManager.set(stream_id, options.inputId, codec, conn, avatar): 
+                inputManager.add(stream_id, codec, conn, avatar);
+
             if (inputId >= 0) {
                 if (engine.addInput(inputId, codec, conn, avatar)) {
                     layoutProcessor.addInput(inputId);
@@ -368,10 +409,14 @@ function VMixer(rpcClient, clusterIP) {
             'layout': videoConfig.layout.templates,
             'crop': (videoConfig.layout.fitPolicy === 'crop' ? true : false),
             'gaccplugin': gaccPluginEnabled,
-            'MFE_timeout': MFE_timeout
+            'MFE_timeout': MFE_timeout,
+            'avatars': videoConfig.staticParticipants? videoConfig.staticParticipants.map(o => new Buffer(o.avatarData.data, "base64")): []
         };
 
-        inputManager = new InputManager(videoConfig.maxInput);
+        if(videoConfig.staticParticipants)
+            staticParticipants = videoConfig.staticParticipants;
+
+        inputManager = new InputManager(videoConfig.maxInput, staticParticipants.length);
         engine = new VideoMixer(config);
         layoutProcessor = new LayoutProcessor(videoConfig.layout.templates);
         layoutProcessor.on('error', function (e) {
@@ -398,15 +443,21 @@ function VMixer(rpcClient, clusterIP) {
                         sceneSolution.bgImageData = image.data;
                         engine.updateSceneSolution(sceneSolution);
                     });
-                } else
+                } else{
+                    if(sceneSolution.bgImageData && typeof(sceneSolution.bgImageData) == "string"){
+                        sceneSolution.bgImageData = new Buffer(sceneSolution.bgImageData, "base64");
+                    }
                     engine.updateSceneSolution(sceneSolution);
+                }
             } else {
                 log.warn('No native method: updateSceneSolution');
             }
 
-            var streamRegions = formatLayoutSolution(sceneSolution.layout);
-            var layoutChangeArgs = [belong_to, streamRegions, view];
-            rpcClient.remoteCall(controller, 'onVideoLayoutChange', layoutChangeArgs);
+            if(sceneSolution.layout){
+                var streamRegions = formatLayoutSolution(sceneSolution.layout);
+                var layoutChangeArgs = [belong_to, streamRegions, view];
+                rpcClient.remoteCall(controller, 'onVideoLayoutChange', layoutChangeArgs);
+            }
         });
         belong_to = belongTo;
         controller = layoutcontroller;
@@ -419,6 +470,8 @@ function VMixer(rpcClient, clusterIP) {
         default_resolution = (videoConfig.parameters.resolution || {width: 640, height: 480});
         default_framerate = (videoConfig.parameters.framerate || 30);
         default_kfi = (videoConfig.parameters.keyFrameInterval || 1000);
+
+        layoutProcessor.setStaticInputNum(videoConfig.staticParticipants.length);
 
         log.debug('Video engine init OK, supported_codecs:', supported_codecs);
         callback('callback', {codecs: supported_codecs});
@@ -527,6 +580,12 @@ function VMixer(rpcClient, clusterIP) {
         } else {
             callback('callback', 'error', 'No stream:' + stream_id);
         }
+    };
+
+    that.setAvatar = function (inputId, avatar, callback) {
+        log.debug('setInputActive, stream_id:', stream_id, 'active:', active);
+        engine.setAvatar(inputId, avatar);
+        callback('callback', 'ok');
     };
 
     that.publish = function (stream_id, stream_type, options, callback) {
@@ -686,53 +745,63 @@ function VMixer(rpcClient, clusterIP) {
     that.setScene = function (scene, callback) {
         log.debug('setScene, scene:', JSON.stringify(scene));
 
-        let layout = scene.layout;
+        if(scene.layout){
+            let layout = scene.layout;
 
-        var specified_streams = layout.map((obj) => {return obj.stream ? obj.stream : null;}).filter((st) => { return st;});
-        var current_streams = [];
+            var specified_streams = layout.map((obj) => {return obj.stream ? obj.stream : null;}).filter((st) => { return st;});
+            var current_streams = [];
 
-        inputManager.getStreamList().map((stream_id) => {
-            let input = inputManager.remove(stream_id);
-            if (input.id >= 0) {
-                engine.removeInput(input.id);
-            }
-
-            input.stream = stream_id;
-
-            if (specified_streams.indexOf(stream_id) >= 0) {
-              current_streams.unshift(input);
-            } else {
-              current_streams.push(input);
-            }
-        });
-
-        inputManager.reset(layout.length);
-
-        current_streams.forEach((obj) => {
-          let input = inputManager.add(obj.stream, obj.codec, obj.conn, obj.avatar);
-          if (input >= 0) {
-            engine.addInput(input, obj.codec, obj.conn, obj.avatar);
-            if (specified_streams.indexOf(obj.stream) < 0) {
-              for (var i in layout) {
-                if (!layout[i].stream) {
-                  layout[i].stream = obj.stream;
-                  break;
+            inputManager.getStreamList().map((stream_id) => {
+                let input = inputManager.remove(stream_id);
+                if (input.id >= 0) {
+                    engine.removeInput(input.id);
                 }
-              }
+
+                input.stream = stream_id;
+
+                if (specified_streams.indexOf(stream_id) >= 0) {
+                current_streams.unshift(input);
+                } else {
+                current_streams.push(input);
+                }
+            });
+
+            inputManager.reset(layout.length);
+
+            current_streams.forEach((obj) => {
+            let input = inputManager.add(obj.stream, obj.codec, obj.conn, obj.avatar);
+            if (input >= 0) {
+                engine.addInput(input, obj.codec, obj.conn, obj.avatar);
+                if (specified_streams.indexOf(obj.stream) < 0) {
+                for (var i in layout) {
+                    if (!layout[i].stream) {
+                    layout[i].stream = obj.stream;
+                    break;
+                    }
+                }
+                }
             }
-          }
-        });
+            });
 
-        var inputLayout = layout.map((obj) => {
-          if (obj.stream) {
-            return {input: inputManager.get(obj.stream).id, region: obj.region};
-          } else {
-            return {region: obj.region};
-          }
-        });
+            var inputLayout = layout.map((obj) => {
+                if (obj.stream) {
+                    return {input: inputManager.get(obj.stream).id, region: obj.region};
+                } else {
+                    return {region: obj.region};
+                }
+            });
+            scene = {
+                ...scene,
+                layout:inputLayout
+            };
+        }
 
-        layoutProcessor.setScene({ ...scene, layout:inputLayout }, function(sceneSolution) {
-          callback('callback', { ...sceneSolution, layout: formatLayoutSolution(sceneSolution.layout) } );
+        layoutProcessor.setScene(scene, function(sceneSolution) {
+            var layout;
+            if(sceneSolution.layout){
+                layout = formatLayoutSolution(sceneSolution.layout);
+            }
+            callback('callback', { ...sceneSolution, layout } );
         }, function(err) {
           callback('callback', 'error', 'layoutProcessor failed');
         });

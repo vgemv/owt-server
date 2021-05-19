@@ -135,6 +135,20 @@ bool AvatarManager::setAvatar(uint8_t index, const std::string &url)
     return true;
 }
 
+bool AvatarManager::setAvatar(uint8_t index, boost::shared_ptr<ImageData> image){
+    boost::unique_lock<boost::shared_mutex> lock(m_mutex);
+
+    if(!image)return false;
+
+    rtc::scoped_refptr<webrtc::VideoFrameBuffer> frameBuffer;
+    if (ImageHelper::getVideoFrame(image->data, image->size, frameBuffer) != 0){
+        ELOG_WARN_T("configured image is invalid!");
+    }
+    
+    boost::shared_ptr<webrtc::VideoFrame> frame(new webrtc::VideoFrame(frameBuffer, webrtc::kVideoRotation_0, 0));
+    m_indexedFrames[index] = frame;
+}
+
 bool AvatarManager::unsetAvatar(uint8_t index)
 {
     boost::unique_lock<boost::shared_mutex> lock(m_mutex);
@@ -160,6 +174,11 @@ boost::shared_ptr<webrtc::VideoFrame> AvatarManager::getAvatarFrame(uint8_t inde
 {
     boost::unique_lock<boost::shared_mutex> lock(m_mutex);
 
+    auto itFrame = m_indexedFrames.find(index);
+    if (itFrame != m_indexedFrames.end()) {
+        return itFrame->second;
+    }
+
     auto it = m_inputs.find(index);
     if (it == m_inputs.end()) {
         ELOG_WARN("Not valid index(%d)", index);
@@ -178,7 +197,7 @@ boost::shared_ptr<webrtc::VideoFrame> AvatarManager::getAvatarFrame(uint8_t inde
 DEFINE_LOGGER(SoftInput, "mcu.media.SoftVideoCompositor.SoftInput");
 
 SoftInput::SoftInput()
-    : m_active(false)
+    : m_active(false), m_connected(false)
 {
     m_bufferManager.reset(new I420BufferManager(3));
     m_converter.reset(new owt_base::FrameConverter());
@@ -201,6 +220,18 @@ bool SoftInput::isActive(void)
     return m_active;
 }
 
+void SoftInput::setConnected(bool connected)
+{
+    boost::unique_lock<boost::shared_mutex> lock(m_mutex);
+    m_connected = connected;
+    if (!m_connected)
+        m_busyFrame.reset();
+}
+
+bool SoftInput::isConnected(void)
+{
+    return m_connected;
+}
 void SoftInput::pushInput(webrtc::VideoFrame *videoFrame)
 {
     {
@@ -348,6 +379,12 @@ void SoftFrameGenerator::updateSceneSolution(SceneSolution& solution)
     if(solution.layout){
         m_newLayout         = *solution.layout;
         m_configureChanged  = true;
+    }
+
+    if(solution.bgImage){
+        if (ImageHelper::getVideoFrame(solution.bgImage->data, solution.bgImage->size, m_bgFrame) != 0){
+            ELOG_WARN_T("configured background image is invalid!");
+        }
     }
 }
 
@@ -562,11 +599,11 @@ rtc::scoped_refptr<webrtc::VideoFrameBuffer> SoftFrameGenerator::layout()
         // 等比例填满
         // 1920/1080 - 1919/1080 = 0.0009
         if (bgRatio - compositeRatio > 0.001) {
-            cropped_x = (compositeRatio * bgBuffer->height() - m_size.width) / 2;
             cropped_width = compositeRatio * bgBuffer->height();
+            cropped_x = ( bgBuffer->width() - compositeRatio * bgBuffer->height() ) / 2;
         } else if (bgRatio - compositeRatio < -0.001) {
-            cropped_y = ( bgBuffer->width() / compositeRatio - m_size.height) / 2;
             cropped_height = bgBuffer->width() / compositeRatio;
+            cropped_y = ( bgBuffer->height() - bgBuffer->width() / compositeRatio ) / 2;
         } 
 
         libyuv::I420Scale(
@@ -647,14 +684,20 @@ void SoftFrameGenerator::clearText()
 DEFINE_LOGGER(SoftVideoCompositor, "mcu.media.SoftVideoCompositor");
 
 SoftVideoCompositor::SoftVideoCompositor(uint32_t maxInput, VideoSize rootSize, YUVColor bgColor, const rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame, bool crop)
-    : m_maxInput(maxInput), m_bgFrame(bgFrame)
+    : m_maxInput(maxInput), m_maxStaticInput(0), m_bgFrame(bgFrame)
 {
     m_inputs.resize(m_maxInput);
     for (auto& input : m_inputs) {
         input.reset(new SoftInput());
     }
 
+    m_staticInputs.resize(m_maxStaticInput);
+    for (auto& input : m_staticInputs) {
+        input.reset(new SoftInput());
+    }
+
     m_avatarManager.reset(new AvatarManager(maxInput));
+    m_staticAvatarManager.reset(new AvatarManager(m_maxStaticInput));
 
     m_generators.resize(2);
     m_generators[0].reset(new SoftFrameGenerator(this, rootSize, bgColor, bgFrame, crop, 60, 15));
@@ -665,7 +708,9 @@ SoftVideoCompositor::~SoftVideoCompositor()
 {
     m_generators.clear();
     m_avatarManager.reset();
+    m_staticAvatarManager.reset();
     m_inputs.clear();
+    m_staticInputs.clear();
 }
 
 void SoftVideoCompositor::updateRootSize(VideoSize& rootSize)
@@ -697,6 +742,18 @@ void SoftVideoCompositor::updateSceneSolution(SceneSolution& solution)
     }
 }
 
+bool SoftVideoCompositor::addInput(int input)
+{
+    m_inputs[input]->setConnected(true);
+    return true;
+}
+
+bool SoftVideoCompositor::removeInput(int input)
+{
+    m_inputs[input]->setConnected(false);
+    return true;
+}
+
 bool SoftVideoCompositor::activateInput(int input)
 {
     m_inputs[input]->setActive(true);
@@ -709,6 +766,11 @@ void SoftVideoCompositor::deActivateInput(int input)
 }
 
 bool SoftVideoCompositor::setAvatar(int input, const std::string& avatar)
+{
+    return m_avatarManager->setAvatar(input, avatar);
+}
+
+bool SoftVideoCompositor::setAvatar(int input, boost::shared_ptr<ImageData> avatar)
 {
     return m_avatarManager->setAvatar(input, avatar);
 }
@@ -759,7 +821,7 @@ boost::shared_ptr<webrtc::VideoFrame> SoftVideoCompositor::getInputFrame(int ind
     boost::shared_ptr<webrtc::VideoFrame> src;
 
     auto& input = m_inputs[index];
-    if (input->isActive()) {
+    if (input->isActive() && input->isConnected()) {
         src = input->popInput();
     } else {
         src = m_avatarManager->getAvatarFrame(index);
