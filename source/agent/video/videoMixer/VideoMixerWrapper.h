@@ -37,6 +37,7 @@ class VideoMixer : public node::ObjectWrap {
 
   static void updateLayoutSolution(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void updateSceneSolution(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void updateInputOverlay(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void forceKeyFrame(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   static void drawText(const v8::FunctionCallbackInfo<v8::Value>& args);

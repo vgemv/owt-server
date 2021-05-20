@@ -270,6 +270,10 @@ void VideoMixer::updateSceneSolution(SceneSolution& solution) {
     m_frameMixer->updateSceneSolution(solution);
 }
 
+void VideoMixer::updateInputOverlay(int inputId, std::vector<Overlay>& overlays) {
+    m_frameMixer->updateInputOverlay(inputId, overlays);
+}
+
 void VideoMixer::drawText(const std::string& textSpec)
 {
     m_frameMixer->drawText(textSpec);

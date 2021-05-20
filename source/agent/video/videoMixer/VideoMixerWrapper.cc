@@ -389,6 +389,61 @@ void VideoMixer::updateSceneSolution(const v8::FunctionCallbackInfo<v8::Value>& 
 
 }
 
+void VideoMixer::updateInputOverlay(const v8::FunctionCallbackInfo<v8::Value>& args) {
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope scope(isolate);
+
+  VideoMixer* obj = ObjectWrap::Unwrap<VideoMixer>(args.Holder());
+  mcu::VideoMixer* me = obj->me;
+
+  int32_t inputId = args[0]->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Int32Value(Nan::GetCurrentContext()).ToChecked();
+  std::vector<mcu::Overlay> overlays;
+
+  // boost::shared_ptr<ImageData> image;
+  // rtc::scoped_refptr<webrtc::VideoFrameBuffer> imageBuffer;
+  // int z;
+  // double x;
+  // double y;
+  // double width;
+  // double height;
+  // bool disabled;
+
+  Local<Object> overlayObjs = args[1]->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+  if (overlayObjs->IsArray()) {
+    mcu::Overlay overlay;
+    int length = overlayObjs->Get(String::NewFromUtf8(isolate, "length"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Uint32Value(Nan::GetCurrentContext()).ToChecked();
+    for (int i = 0; i < length; i++) {
+      if (!overlayObjs->Get(i)->IsObject())
+        continue;
+      Local<Object> overlayObj = overlayObjs->Get(i)->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+
+      // image
+      Local<Object> imageObj = overlayObj->Get(String::NewFromUtf8(isolate, "imageData"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+      char* buffer = (char*) node::Buffer::Data(imageObj);
+      const size_t size = node::Buffer::Length(imageObj);
+
+      mcu::ImageData* imageData = new mcu::ImageData(size);
+      boost::shared_ptr<mcu::ImageData> image(imageData);
+      memcpy(imageData->data, buffer, size);
+
+      overlay.image = image;
+
+      // position
+
+      overlay.z = overlayObj->Get(String::NewFromUtf8(isolate, "z"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Int32Value(Nan::GetCurrentContext()).ToChecked();
+      overlay.x = overlayObj->Get(String::NewFromUtf8(isolate, "x"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
+      overlay.y = overlayObj->Get(String::NewFromUtf8(isolate, "y"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
+      overlay.width = overlayObj->Get(String::NewFromUtf8(isolate, "width"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
+      overlay.height = overlayObj->Get(String::NewFromUtf8(isolate, "height"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
+      overlay.disabled = overlayObj->Get(String::NewFromUtf8(isolate, "disabled"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->BooleanValue(Nan::GetCurrentContext()).ToChecked();
+
+      overlays.push_back(overlay);
+    }
+  }
+
+  me->updateInputOverlay(inputId, overlays);
+}
+
 void VideoMixer::forceKeyFrame(const v8::FunctionCallbackInfo<v8::Value>& args) {
   Isolate* isolate = Isolate::GetCurrent();
   HandleScope scope(isolate);

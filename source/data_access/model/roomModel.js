@@ -152,19 +152,9 @@ var SceneSchema = new Schema({
   bgImageUri: { type: String },                         // 背景图地址
   preview: { type: Schema.Types.ObjectId, ref: 'Image' }, // 默认图片
   overlays: [ { type: Schema.Types.ObjectId, ref: 'Overlay' } ],
-  layout: {
-    //TODO: stretched?
-    fitPolicy: { type: String, enum: ['letterbox', 'crop'], default: 'letterbox' },
-    setRegionEffect: { type: String },
-    templates: {
-      base: { type: String, enum: ['fluid', 'lecture', 'void'], default: 'fluid' },
-      custom: [{
-        _id: false,
-        primary: { type: String },
-        region: [ Region ]
-      }]
-    }
-  }
+  layout: [{
+    region: Region
+  }]
 });
 
 var OverlayTemplateSchema = new Schema({
@@ -252,6 +242,7 @@ RoomSchema.set('toObject', { getters: true });
 RoomSchema.statics.ViewSchema = mongoose.model('View', ViewSchema);
 RoomSchema.statics.ImageSchema = mongoose.model('Image', ImageSchema);
 RoomSchema.statics.OverlaySchema = mongoose.model('Overlay', OverlaySchema);
+RoomSchema.statics.SceneSchema = mongoose.model('Scene', SceneSchema);
 RoomSchema.statics.OverlayTemplateSchema = mongoose.model('OverlayTemplate', OverlayTemplateSchema);
 
 RoomSchema.statics.processLayout = function(room) {

@@ -27,11 +27,12 @@ struct ImageData {
 
 struct Overlay {
     boost::shared_ptr<ImageData> image;
+    rtc::scoped_refptr<webrtc::VideoFrameBuffer> imageBuffer;
     int z;
-    int x;
-    int y;
-    int width;
-    int height;
+    double x;
+    double y;
+    double width;
+    double height;
     bool disabled;
 };
 
@@ -39,7 +40,7 @@ struct SceneSolution {
     std::string layoutEffect;
     boost::shared_ptr<ImageData> bgImage;
     boost::shared_ptr<LayoutSolution> layout;
-    boost::shared_ptr<std::list<Overlay>> overlays;
+    boost::shared_ptr<std::vector<Overlay>> overlays;
 };
 
 }

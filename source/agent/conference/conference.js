@@ -2275,69 +2275,85 @@ var Conference = function (rpcClient, selfRpcId) {
             } else if (cmd.path === '/info/scene') {
               if (streams[streamId].type === 'mixed') {
 
-                let layout = cmd.value.layout;
-                if (layout instanceof Array) {
-                  var first_absence = 65535;//FIXME: stream id hole is not allowed
-                  var stream_id_hole = false;//FIXME: stream id hole is not allowed
-                  var stream_id_dup = false;
-                  var stream_ok = true;
-                  var region_ok = true;
-                  for (var i in layout) {
-                    if (first_absence === 65535 && !layout[i].stream) {
-                      first_absence = i;
+                let scene = cmd.value;
+                if(cmd.value.id){
+                  scene = room_config.scenes.find(i=>i._id == cmd.value.id);
+                  if(!scene)
+                    exe = Promise.reject(`scene id(${cmd.value.id}) does NOT exist`);
+                  else {
+                    if(scene.layout){
+                      scene.layout.forEach(o => {
+                        o.region = getRegionObj(o.region)
+                      })
                     }
-
-                    if (layout[i].stream && first_absence < i) {
-                      stream_id_hole = true;
-                      break;
-                    }
-
-                    for (var j = 0; j < i; j++) {
-                      if (layout[j].stream && layout[j].stream === layout[i].stream) {
-                        stream_id_dup = true;
+                  }
+                }
+                else {
+                  let layout = cmd.value.layout;
+                  if (layout instanceof Array) {
+                    var first_absence = 65535;//FIXME: stream id hole is not allowed
+                    var stream_id_hole = false;//FIXME: stream id hole is not allowed
+                    var stream_id_dup = false;
+                    var stream_ok = true;
+                    var region_ok = true;
+                    for (var i in layout) {
+                      if (first_absence === 65535 && !layout[i].stream) {
+                        first_absence = i;
                       }
-                    }
 
-                    if (layout[i].stream && (!streams[layout[i].stream] || (streams[layout[i].stream].type !== 'forward'))) {
-                      stream_ok = false;
-                      break;
-                    }
+                      if (layout[i].stream && first_absence < i) {
+                        stream_id_hole = true;
+                        break;
+                      }
 
-                    var region_obj = getRegionObj(layout[i].region);
-                    if (!region_obj) {
-                      region_ok = false;
-                      break;
-                    } else {
                       for (var j = 0; j < i; j++) {
-                        if (layout[j].region.id === region_obj.id) {
-                          region_ok = false;
-                          break;
+                        if (layout[j].stream && layout[j].stream === layout[i].stream) {
+                          stream_id_dup = true;
                         }
                       }
 
-                      if (region_ok) {
-                        layout[i].region = region_obj;
-                      } else {
+                      if (layout[i].stream && (!streams[layout[i].stream] || (streams[layout[i].stream].type !== 'forward'))) {
+                        stream_ok = false;
                         break;
                       }
-                    }
-                  }
 
-                  if (stream_id_hole) {
-                    exe = Promise.reject('Stream ID hole is not allowed');
-                  } else if (stream_id_dup) {
-                    exe = Promise.reject('Stream ID duplicates');
-                  } else if (!stream_ok) {
-                    exe = Promise.reject('Invalid input stream id');
-                  } else if (!region_ok) {
-                    exe = Promise.reject('Invalid region');
+                      var region_obj = getRegionObj(layout[i].region);
+                      if (!region_obj) {
+                        region_ok = false;
+                        break;
+                      } else {
+                        for (var j = 0; j < i; j++) {
+                          if (layout[j].region.id === region_obj.id) {
+                            region_ok = false;
+                            break;
+                          }
+                        }
+
+                        if (region_ok) {
+                          layout[i].region = region_obj;
+                        } else {
+                          break;
+                        }
+                      }
+                    }
+
+                    if (stream_id_hole) {
+                      exe = Promise.reject('Stream ID hole is not allowed');
+                    } else if (stream_id_dup) {
+                      exe = Promise.reject('Stream ID duplicates');
+                    } else if (!stream_ok) {
+                      exe = Promise.reject('Invalid input stream id');
+                    } else if (!region_ok) {
+                      exe = Promise.reject('Invalid region');
+                    } else {
+                    }
                   } else {
+                    // exe = Promise.reject('Invalid value');
                   }
-                } else {
-                  // exe = Promise.reject('Invalid value');
                 }
+
                 if(!exe)
-                  exe = setScene(streamId, cmd.value);
+                  exe = setScene(streamId, scene);
               } else {
                 exe = Promise.reject('Not mixed stream');
               }

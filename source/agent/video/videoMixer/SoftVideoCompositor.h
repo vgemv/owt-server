@@ -109,6 +109,7 @@ public:
 
     void updateLayoutSolution(LayoutSolution& solution);
     void updateSceneSolution(SceneSolution& solution);
+    void updateInputOverlay(int inputId, std::vector<Overlay>& overlays);
 
     bool isSupported(uint32_t width, uint32_t height, uint32_t fps);
 
@@ -124,6 +125,7 @@ protected:
     rtc::scoped_refptr<webrtc::VideoFrameBuffer> generateFrame();
     rtc::scoped_refptr<webrtc::VideoFrameBuffer> layout();
     static void layout_regions(SoftFrameGenerator *t, rtc::scoped_refptr<webrtc::I420Buffer> compositeBuffer, const LayoutSolution &regions);
+    static void layout_overlays(SoftFrameGenerator *t, rtc::scoped_refptr<webrtc::I420Buffer> compositeBuffer, const LayoutSolution &regions, const std::vector<std::vector<Overlay>> &inputOverlays, const std::vector<Overlay> &overlays);
 
     void reconfigureIfNeeded();
 
@@ -147,8 +149,11 @@ private:
 
     bool                        m_crop;
 
-    std::list<Overlay>          m_overlays;
-    std::map<std::string,std::list<Overlay>>          m_input_overlays;
+    std::vector<Overlay>          m_newOverlays;
+    std::vector<Overlay>          m_overlays;
+    
+    std::map<int,std::vector<Overlay>>         m_newInputOverlays;
+    std::vector<std::vector<Overlay>>          m_inputOverlays;
 
     // reconfifure
     LayoutSolution              m_layout;
@@ -196,6 +201,7 @@ public:
     void updateBackgroundColor(owt_base::YUVColor& bgColor);
     void updateLayoutSolution(LayoutSolution& solution);
     void updateSceneSolution(SceneSolution& solution);
+    void updateInputOverlay(int inputId, std::vector<Overlay>& overlays);
 
     bool addOutput(const uint32_t width, const uint32_t height, const uint32_t framerateFPS, owt_base::FrameDestination *dst) override;
     bool removeOutput(owt_base::FrameDestination *dst) override;

@@ -85,6 +85,7 @@ public:
 
     void updateLayoutSolution(LayoutSolution& solution);
     void updateSceneSolution(SceneSolution& solution);
+    void updateInputOverlay(int inputId, std::vector<Overlay>& overlays);
 
     void drawText(const std::string& textSpec);
     void clearText();
@@ -247,6 +248,11 @@ inline void VideoFrameMixerImpl::updateLayoutSolution(LayoutSolution& solution)
 inline void VideoFrameMixerImpl::updateSceneSolution(SceneSolution& solution)
 {
     m_compositor->updateSceneSolution(solution);
+}
+
+inline void VideoFrameMixerImpl::updateInputOverlay(int inputId, std::vector<Overlay>& overlays)
+{
+    m_compositor->updateInputOverlay(inputId, overlays);
 }
 
 inline void VideoFrameMixerImpl::setBitrate(unsigned short kbps, int output)

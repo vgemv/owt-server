@@ -36,6 +36,37 @@ async function saveImage(roomOption) {
   return roomOption;
 }
 
+async function saveOverlaysToIds(overlays) {
+
+  return await Promise.all(overlays.map(async item => {
+
+    if(item.imageData){
+      let data = new Buffer(item.imageData, "base64");
+      let image = new Room.ImageSchema({data});
+      let savedImage = await image.save();
+      item.imageData = savedImage._id;
+    }
+
+    let overlay = new Room.OverlaySchema(item);
+    let saved = await overlay.save();
+    return saved._id;
+  }));
+}
+
+async function saveScenes(room) {
+
+  await Promise.all(room.scenes.map(async item => {
+    
+      if(item.bgImageData){
+        let data = new Buffer(item.bgImageData, "base64");
+        let image = new Room.ImageSchema({data});
+        let savedImage = await image.save();
+        item.bgImageData = savedImage._id;
+      }
+      item.overlays = await saveOverlaysToIds(item.overlays);
+  }))
+}
+
 function getAudioOnlyLabels(roomOption) {
   var labels = [];
   if (roomOption.views && roomOption.views.forEach) {
@@ -119,6 +150,7 @@ exports.create = async function (serviceId, roomOption, callback) {
 
   removeNull(roomOption);
   await saveImage(roomOption);
+  await saveScenes(roomOption);
 
   var labels = getAudioOnlyLabels(roomOption);
   var room = new Room(roomOption);
@@ -193,6 +225,39 @@ exports.get = function (serviceId, roomId, callback) {
   });
 };
 
+exports.listScene = function (serviceId, roomId, options, callback) {
+  Service.findById(serviceId).lean().exec(function (err, service) {
+    
+    if (err) return callback(err, null);
+
+    var i, match = false;
+    for (i = 0; i < service.rooms.length; i++) {
+      if (service.rooms[i].toString() === roomId) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match) return callback(null, null);
+
+    var popOption = {
+      path: 'scenes',
+      options: { sort: {_id: 1} }
+    };
+    if (options) {
+      if (typeof options.per_page === 'number' && options.per_page > 0) {
+        popOption.options.limit = options.per_page;
+        if (typeof options.page === 'number' && options.page > 0) {
+          popOption.options.skip = (options.page - 1) * options.per_page;
+        }
+      }
+    }
+    Room.findById(roomId).populate(popOption).lean().exec(function (err, room) {
+        return callback(err, room.scenes);
+    });
+  });
+};
+
 /*
  * Delete Room. Removes a determined room from the data base.
  */
@@ -234,7 +299,11 @@ exports.update = function (serviceId, roomId, updates, callback) {
  */
 exports.config = function (roomId) {
   return new Promise((resolve, reject) => {
-    Room.findById(roomId).populate("staticParticipants.avatarData").exec( function (err, room) {
+    Room.findById(roomId)
+    .populate("staticParticipants.avatarData")
+    .populate("scenes.bgImageData")
+    .populate({path:"scenes.overlays",populate:"imageData"})
+    .exec( function (err, room) {
       if (err || !room) {
         reject(err);
       } else {

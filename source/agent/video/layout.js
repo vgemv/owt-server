@@ -285,11 +285,13 @@ LayoutProcessor.prototype.setLayout = function(layout, on_ok, on_error) {
   this.currentRegions = this.templates[layout.length];
 
   this.inputList = [];
-  this.layoutSolution = layout;
-  layout.forEach((obj) => {
-    if (obj.input !== undefined) {
-      this.inputList.push(obj.input);
-    }
+  for(let i=0; i<this.staticInputNum; i++){
+      this.inputList.push(i);
+  }
+  layout.slice(this.staticInputNum).forEach((obj) => {
+      if (obj.input !== undefined) {
+          this.inputList.push(obj.input);
+      }
   });
 
   on_ok(this.layoutSolution);
@@ -306,7 +308,10 @@ LayoutProcessor.prototype.setScene = function(scene, on_ok, on_error) {
     this.currentRegions = this.templates[layout.length];
 
     this.inputList = [];
-    layout.forEach((obj) => {
+    for(let i=0; i<this.staticInputNum; i++){
+        this.inputList.push(i);
+    }
+    layout.slice(this.staticInputNum).forEach((obj) => {
         if (obj.input !== undefined) {
             this.inputList.push(obj.input);
         }

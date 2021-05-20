@@ -381,10 +381,23 @@ void SoftFrameGenerator::updateSceneSolution(SceneSolution& solution)
         m_configureChanged  = true;
     }
 
+    if(solution.overlays){
+        m_overlays = *solution.overlays;
+        m_configureChanged  = true;
+    }
+
     if(solution.bgImage){
         if (ImageHelper::getVideoFrame(solution.bgImage->data, solution.bgImage->size, m_bgFrame) != 0){
             ELOG_WARN_T("configured background image is invalid!");
         }
+    }
+}
+
+void SoftFrameGenerator::updateInputOverlay(int inputId, std::vector<Overlay>& overlays)
+{
+    if(inputId >= 0){
+        m_newInputOverlays[inputId] = overlays;
+        m_configureChanged  = true;
     }
 }
 
@@ -500,6 +513,9 @@ void SoftFrameGenerator::layout_regions(SoftFrameGenerator *t, rtc::scoped_refpt
     uint32_t composite_height = compositeBuffer->height();
 
     for (LayoutSolution::const_iterator it = regions.begin(); it != regions.end(); ++it) {
+        if(it->input < 0)
+            continue;
+            
         boost::shared_ptr<webrtc::VideoFrame> inputFrame = t->m_owner->getInputFrame(it->input);
         if (inputFrame == NULL) {
             continue;
@@ -564,6 +580,79 @@ void SoftFrameGenerator::layout_regions(SoftFrameGenerator *t, rtc::scoped_refpt
                 compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
                 compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
                 cropped_dst_width, cropped_dst_height,
+                libyuv::kFilterBox);
+        if (ret != 0)
+            ELOG_ERROR("I420Scale failed, ret %d", ret);
+    }
+}
+
+void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refptr<webrtc::I420Buffer> compositeBuffer, const LayoutSolution &regions, const std::vector<std::vector<Overlay>> &inputOverlays, const std::vector<Overlay> &overlays)
+{
+
+    uint32_t composite_width = compositeBuffer->width();
+    uint32_t composite_height = compositeBuffer->height();
+
+    for (LayoutSolution::const_iterator it = regions.begin(); it != regions.end(); ++it) {
+        int inputId = it->input;
+        
+        Region region = it->region;
+        uint32_t area_x      = (uint64_t)composite_width * region.area.rect.left.numerator / region.area.rect.left.denominator;
+        uint32_t area_y      = (uint64_t)composite_height * region.area.rect.top.numerator / region.area.rect.top.denominator;
+        uint32_t area_width  = (uint64_t)composite_width * region.area.rect.width.numerator / region.area.rect.width.denominator;
+        uint32_t area_height = (uint64_t)composite_height * region.area.rect.height.numerator / region.area.rect.height.denominator;
+
+        std::vector<Overlay> iOverlays;
+        if(inputId < inputOverlays.size())
+            iOverlays = inputOverlays[inputId];
+
+        for (std::vector<Overlay>::const_iterator ito = iOverlays.begin(); ito != iOverlays.end(); ++ito) {
+
+            rtc::scoped_refptr<webrtc::VideoFrameBuffer> inputBuffer = ito->imageBuffer;
+        
+            uint32_t src_x = 0;
+            uint32_t src_y= 0;
+            uint32_t src_width = inputBuffer->width();
+            uint32_t src_height = inputBuffer->height();
+            uint32_t dst_x = ito->x * area_width + area_x;
+            uint32_t dst_y= ito->y * area_width + area_y;
+            uint32_t dst_width = ito->width * area_width;
+            uint32_t dst_height = ito->height * area_width;
+            int ret = libyuv::I420Scale(
+                    inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
+                    inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),
+                    inputBuffer->DataV() + (src_y * inputBuffer->StrideV() + src_x) / 2, inputBuffer->StrideV(),
+                    src_width, src_height,
+                    compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
+                    compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
+                    compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
+                    dst_width, dst_height,
+                    libyuv::kFilterBox);
+            if (ret != 0)
+                ELOG_ERROR("I420Scale failed, ret %d", ret);
+        }
+    }
+
+    for (std::vector<Overlay>::const_iterator ito = overlays.begin(); ito != overlays.end(); ++ito) {
+
+        rtc::scoped_refptr<webrtc::VideoFrameBuffer> inputBuffer = ito->imageBuffer;
+    
+        uint32_t src_x = 0;
+        uint32_t src_y= 0;
+        uint32_t src_width = inputBuffer->width();
+        uint32_t src_height = inputBuffer->height();
+        uint32_t dst_x = ito->x * composite_width;
+        uint32_t dst_y= ito->y * composite_width;
+        uint32_t dst_width = ito->width * composite_width;
+        uint32_t dst_height = ito->height * composite_width;
+        int ret = libyuv::I420Scale(
+                inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
+                inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),
+                inputBuffer->DataV() + (src_y * inputBuffer->StrideV() + src_x) / 2, inputBuffer->StrideV(),
+                src_width, src_height,
+                compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
+                compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
+                compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
+                dst_width, dst_height,
                 libyuv::kFilterBox);
         if (ret != 0)
             ELOG_ERROR("I420Scale failed, ret %d", ret);
@@ -652,6 +741,8 @@ rtc::scoped_refptr<webrtc::VideoFrameBuffer> SoftFrameGenerator::layout()
     } else {
         layout_regions(this, compositeBuffer, m_layout);
     }
+    
+    layout_overlays(this, compositeBuffer, m_layout, m_inputOverlays, m_overlays);
 
     return compositeBuffer;
 }
@@ -664,6 +755,14 @@ void SoftFrameGenerator::reconfigureIfNeeded()
             return;
 
         m_layout = m_newLayout;
+        m_overlays = m_newOverlays;
+
+        for(std::map<int,std::vector<Overlay>>::const_iterator it = m_newInputOverlays.begin(); it != m_newInputOverlays.end(); it++){
+            if(it->first >= m_inputOverlays.size())
+                m_inputOverlays.resize(it->first + 1);
+            m_inputOverlays[it->first] = it->second;
+        }
+
         m_configureChanged = false;
     }
 
@@ -739,6 +838,12 @@ void SoftVideoCompositor::updateSceneSolution(SceneSolution& solution)
 
     for (auto& generator : m_generators) {
         generator->updateSceneSolution(solution);
+    }
+}
+void SoftVideoCompositor::updateInputOverlay(int inputId, std::vector<Overlay>& overlays)
+{
+    for (auto& generator : m_generators) {
+        generator->updateInputOverlay(inputId, overlays);
     }
 }
 

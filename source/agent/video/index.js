@@ -447,6 +447,9 @@ function VMixer(rpcClient, clusterIP) {
                     if(sceneSolution.bgImageData && typeof(sceneSolution.bgImageData) == "string"){
                         sceneSolution.bgImageData = new Buffer(sceneSolution.bgImageData, "base64");
                     }
+                    if(sceneSolution.bgImageData && sceneSolution.bgImageData.data && typeof(sceneSolution.bgImageData.data) == "string"){
+                        sceneSolution.bgImageData = new Buffer(sceneSolution.bgImageData.data, "base64");
+                    }
                     engine.updateSceneSolution(sceneSolution);
                 }
             } else {
@@ -742,6 +745,18 @@ function VMixer(rpcClient, clusterIP) {
         }
     };
 
+    that.setInputOverlay = function (inputId, overlays, callback) {
+        log.debug(`setInputOverlay, inputId: ${inputId}, overlays: `, JSON.stringify(overlays));
+        if(overlays){
+            overlays.forEach(o=>{
+                if(o.imageData && o.imageData.data)
+                    o.imageData = new Buffer(o.imageData.data, "base64");
+            })
+        }
+
+        engine.updateInputOverlays(inputId, overlays);
+    }
+
     that.setScene = function (scene, callback) {
         log.debug('setScene, scene:', JSON.stringify(scene));
 
@@ -760,32 +775,40 @@ function VMixer(rpcClient, clusterIP) {
                 input.stream = stream_id;
 
                 if (specified_streams.indexOf(stream_id) >= 0) {
-                current_streams.unshift(input);
+                    current_streams.unshift(input);
                 } else {
-                current_streams.push(input);
+                    current_streams.push(input);
                 }
             });
 
             inputManager.reset(layout.length);
 
+            layout.slice(0, inputManager.staticInput).forEach((o,idx) => {
+                o.input = idx;
+            });
+
             current_streams.forEach((obj) => {
-            let input = inputManager.add(obj.stream, obj.codec, obj.conn, obj.avatar);
-            if (input >= 0) {
-                engine.addInput(input, obj.codec, obj.conn, obj.avatar);
-                if (specified_streams.indexOf(obj.stream) < 0) {
-                for (var i in layout) {
-                    if (!layout[i].stream) {
-                    layout[i].stream = obj.stream;
-                    break;
+                let input = obj.id >= 0?
+                    inputManager.set(obj.stream, obj.id, obj.codec, obj.conn, obj.avatar):
+                    inputManager.add(obj.stream, obj.codec, obj.conn, obj.avatar);
+                if (input >= 0) {
+                    engine.addInput(input, obj.codec, obj.conn, obj.avatar);
+                    if (specified_streams.indexOf(obj.stream) < 0) {
+                    for (var i in layout) {
+                        if (!layout[i].stream && layout[i].input === undefined) {
+                            layout[i].stream = obj.stream;
+                            break;
+                        }
+                    }
                     }
                 }
-                }
-            }
             });
 
             var inputLayout = layout.map((obj) => {
                 if (obj.stream) {
                     return {input: inputManager.get(obj.stream).id, region: obj.region};
+                } else if(obj.input >= 0) {
+                    return {input: obj.input, region: obj.region};
                 } else {
                     return {region: obj.region};
                 }
@@ -794,6 +817,13 @@ function VMixer(rpcClient, clusterIP) {
                 ...scene,
                 layout:inputLayout
             };
+        }
+
+        if(scene.overlays){
+            scene.overlays.forEach(o=>{
+                if(o.imageData && o.imageData.data)
+                    o.imageData = new Buffer(o.imageData.data, "base64");
+            })
         }
 
         layoutProcessor.setScene(scene, function(sceneSolution) {
