@@ -376,15 +376,28 @@ void SoftFrameGenerator::updateSceneSolution(SceneSolution& solution)
 {
     boost::unique_lock<boost::shared_mutex> lock(m_configMutex);
 
+    bool changed = false;
     if(solution.layout){
         m_newLayout         = *solution.layout;
-        m_configureChanged  = true;
+        changed  = true;
     }
 
     if(solution.overlays){
-        m_overlays = *solution.overlays;
-        m_configureChanged  = true;
+        m_newOverlays = *solution.overlays;
+
+        for (std::vector<Overlay>::iterator ito = m_newOverlays.begin(); ito != m_newOverlays.end(); ++ito) {
+            if(ito->image){
+                if (ImageHelper::getVideoFrame(ito->image->data, ito->image->size, ito->imageBuffer) != 0){
+                    ELOG_WARN_T("configured overlay image is invalid!");
+                }
+            }
+        }
+
+        changed  = true;
     }
+
+    if(changed)
+        m_configureChanged = true;
 
     if(solution.bgImage){
         if (ImageHelper::getVideoFrame(solution.bgImage->data, solution.bgImage->size, m_bgFrame) != 0){
@@ -635,6 +648,7 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
     for (std::vector<Overlay>::const_iterator ito = overlays.begin(); ito != overlays.end(); ++ito) {
 
         rtc::scoped_refptr<webrtc::VideoFrameBuffer> inputBuffer = ito->imageBuffer;
+        if(!inputBuffer)continue;
     
         uint32_t src_x = 0;
         uint32_t src_y= 0;
@@ -644,6 +658,18 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
         uint32_t dst_y= ito->y * composite_width;
         uint32_t dst_width = ito->width * composite_width;
         uint32_t dst_height = ito->height * composite_width;
+
+        if(dst_x + dst_width > composite_width){
+            double rate = src_width / (double)dst_width;
+            dst_width = composite_width - dst_x;
+            src_width = dst_width * rate;
+        }
+        if(dst_y + dst_height > composite_height){
+            double rate = src_height / (double)dst_height;
+            dst_height = composite_height - dst_y;
+            src_height = dst_height * rate;
+        }
+
         int ret = libyuv::I420Scale(
                 inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
                 inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),

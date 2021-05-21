@@ -450,6 +450,13 @@ function VMixer(rpcClient, clusterIP) {
                     if(sceneSolution.bgImageData && sceneSolution.bgImageData.data && typeof(sceneSolution.bgImageData.data) == "string"){
                         sceneSolution.bgImageData = new Buffer(sceneSolution.bgImageData.data, "base64");
                     }
+
+                    if(sceneSolution.overlays){
+                        sceneSolution.overlays.forEach(o => {
+                            if(o.imageData && o.imageData.data && typeof(o.imageData.data) == "string")
+                                o.imageData = new Buffer(o.imageData.data, "base64");
+                        })
+                    }
                     engine.updateSceneSolution(sceneSolution);
                 }
             } else {
@@ -817,13 +824,6 @@ function VMixer(rpcClient, clusterIP) {
                 ...scene,
                 layout:inputLayout
             };
-        }
-
-        if(scene.overlays){
-            scene.overlays.forEach(o=>{
-                if(o.imageData && o.imageData.data)
-                    o.imageData = new Buffer(o.imageData.data, "base64");
-            })
         }
 
         layoutProcessor.setScene(scene, function(sceneSolution) {

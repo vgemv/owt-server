@@ -2282,9 +2282,10 @@ var Conference = function (rpcClient, selfRpcId) {
                     exe = Promise.reject(`scene id(${cmd.value.id}) does NOT exist`);
                   else {
                     if(scene.layout){
-                      scene.layout.forEach(o => {
-                        o.region = getRegionObj(o.region)
-                      })
+                      // copy 
+                      scene = {...scene, layout: scene.layout.map(o => {
+                        return {...o, region: getRegionObj(o.region)}
+                      })};
                     }
                   }
                 }

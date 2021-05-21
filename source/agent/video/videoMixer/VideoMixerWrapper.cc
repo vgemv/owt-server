@@ -384,6 +384,38 @@ void VideoMixer::updateSceneSolution(const v8::FunctionCallbackInfo<v8::Value>& 
     }
   }
 
+  if(jsSolution->Has(String::NewFromUtf8(isolate, "overlays"))) { 
+    Local<Object> overlays = jsSolution->Get(String::NewFromUtf8(isolate, "overlays"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+    if (overlays->IsArray()) {
+      solution.overlays.reset(new std::vector<mcu::Overlay>());
+      int length = overlays->Get(String::NewFromUtf8(isolate, "length"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Uint32Value(Nan::GetCurrentContext()).ToChecked();
+      for (int i = 0; i < length; i++) {
+        if (!overlays->Get(i)->IsObject())
+          continue;
+        Local<Object> overlay = overlays->Get(i)->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+        
+        mcu::Overlay overlayItem;
+        
+        overlayItem.z = overlay->Get(String::NewFromUtf8(isolate, "z"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Int32Value(Nan::GetCurrentContext()).ToChecked();
+        overlayItem.x = overlay->Get(String::NewFromUtf8(isolate, "x"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
+        overlayItem.y = overlay->Get(String::NewFromUtf8(isolate, "y"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
+        overlayItem.width = overlay->Get(String::NewFromUtf8(isolate, "width"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
+        overlayItem.height = overlay->Get(String::NewFromUtf8(isolate, "height"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
+        Local<Value> image = overlay->Get(String::NewFromUtf8(isolate, "imageData"));
+        if (image->IsObject()) {
+          Local<Object> obj = image->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+          char* buffer = (char*) node::Buffer::Data(obj);
+          const size_t size = node::Buffer::Length(obj);
+
+          mcu::ImageData* imageData = new mcu::ImageData(size);
+          overlayItem.image.reset(imageData);
+          memcpy(imageData->data, buffer, size);
+        }
+        solution.overlays->push_back(overlayItem);
+      }
+    }
+  }
+
   me->updateSceneSolution(solution);
   args.GetReturnValue().Set(Boolean::New(isolate, true));
 
