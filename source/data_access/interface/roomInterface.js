@@ -8,39 +8,11 @@ var Default = require('./../defaults');
 var Room = require('./../model/roomModel');
 var Service = require('./../model/serviceModel');
 
-function generateBufferFromBase64(roomOption) {
-
-  if (roomOption.views && roomOption.views.forEach) {
-    roomOption.views.forEach((view) => {
-      if (view.video && view.video.bgImageData && typeof(view.video.bgImageData) == "string") {
-        view.video.bgImageData = new Buffer(view.video.bgImageData, "base64");
-      }
-    });
-  }
-}
-
-async function saveImage(roomOption) {
-
-  if (roomOption.staticParticipants && roomOption.staticParticipants.forEach) {
-    for(let i in roomOption.staticParticipants) {
-      let item = roomOption.staticParticipants[i];
-      if(item.avatarData){
-        let data = new Buffer(item.avatarData, "base64");
-        let image = new Room.ImageSchema({data});
-        let savedImage = await image.save();
-        item.avatarData = savedImage._id;
-      }
-    };
-  }
-
-  return roomOption;
-}
-
 async function saveOverlaysToIds(overlays) {
 
   return await Promise.all(overlays.map(async item => {
 
-    if(item.imageData){
+    if(item.imageData && typeof(item.imageData) == "string"){
       let data = new Buffer(item.imageData, "base64");
       let image = new Room.ImageSchema({data});
       let savedImage = await image.save();
@@ -57,13 +29,28 @@ async function saveScenes(room) {
 
   await Promise.all(room.scenes.map(async item => {
     
-      if(item.bgImageData){
+      if(item.bgImageData && typeof(item.bgImageData) == "string"){
         let data = new Buffer(item.bgImageData, "base64");
         let image = new Room.ImageSchema({data});
         let savedImage = await image.save();
         item.bgImageData = savedImage._id;
       }
       item.overlays = await saveOverlaysToIds(item.overlays);
+  }))
+}
+
+async function saveStaticParticipants(room) {
+
+  await Promise.all(room.staticParticipants.map(async item => {
+    
+      if(item.avatarData && typeof(item.avatarData) == "string"){
+        let data = new Buffer(item.avatarData, "base64");
+        let image = new Room.ImageSchema({data});
+        let savedImage = await image.save();
+        item.avatarData = savedImage._id;
+      }
+      if(item.overlays)
+        item.overlays = await saveOverlaysToIds(item.overlays);
   }))
 }
 
@@ -149,8 +136,13 @@ exports.create = async function (serviceId, roomOption, callback) {
   }
 
   removeNull(roomOption);
-  await saveImage(roomOption);
-  await saveScenes(roomOption);
+
+  try{
+    await saveScenes(roomOption);
+    await saveStaticParticipants(roomOption);
+  }catch(e){
+    callback(e, null);
+  }
 
   var labels = getAudioOnlyLabels(roomOption);
   var room = new Room(roomOption);
@@ -225,6 +217,142 @@ exports.get = function (serviceId, roomId, callback) {
   });
 };
 
+exports.getScene = async function (serviceId, roomId, sceneId, callback) {
+  try{
+    let service = await Service.findById(serviceId).lean().exec();
+    
+    var i, match = false;
+    for (i = 0; i < service.rooms.length; i++) {
+      if (service.rooms[i].toString() === roomId) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match) return callback(null, null);
+
+    let room = await Room.findById(roomId).exec();
+
+    let sceneIdx = room.scenes.findIndex(i => i._id == sceneId);
+
+    room = await room.populate(`scenes.${sceneIdx}.bgImageData`).populate({path:`scenes.${sceneIdx}.overlays`,populate:"imageData"}).execPopulate();
+
+    let scene = room.scenes[sceneIdx];
+
+    if(scene)
+      callback(null, scene.toObject());
+    else
+      callback(null, null);
+
+  }catch(err){
+    callback(err, null);
+  }
+};
+
+exports.deleteScene = async function (serviceId, roomId, sceneId, callback) {
+  try{
+    let service = await Service.findById(serviceId).lean().exec();
+    
+    var i, match = false;
+    for (i = 0; i < service.rooms.length; i++) {
+      if (service.rooms[i].toString() === roomId) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match) return callback(null, null);
+
+    let room = await Room.findById(roomId).exec();
+
+    let scene = room.scenes.find(i => i._id == sceneId);
+
+    if (!scene) throw new Error("Scene not found");
+
+    room.scenes = room.scenes.filter(i => i._id != sceneId);
+    await room.save();
+
+    // remove relative
+    {
+      // remove Image
+      scene.preview && await Room.ImageSchema.deleteOne({_id: scene.preview}).exec();
+
+      // remove Overlay
+      if(scene.overlays){
+        await Promise.all(scene.overlays.map(async i => {
+          let overlay =  await Room.OverlaySchema.findById(i).exec();
+          overlay.imageData && await Room.ImageSchema.deleteOne({_id: overlay.imageData}).exec();
+          await Room.OverlaySchema.deleteOne({_id: overlay._id});
+        }));
+      }
+    }
+
+
+    callback(null, sceneId);
+
+  }catch(err){
+    callback(err, null);
+  }
+}
+exports.updateScene = async function (serviceId, roomId, scene, callback) {
+  try{
+    let service = await Service.findById(serviceId).lean().exec();
+    
+    var i, match = false;
+    for (i = 0; i < service.rooms.length; i++) {
+      if (service.rooms[i].toString() === roomId) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match) return callback(new Error("Room not found"), null);
+
+    let room = await Room.findById(roomId).exec();
+
+    let dbScene = room.scenes.find(i => i._id == scene._id);
+
+    if(!dbScene) return callback(new Error("Scene not found"), null);
+
+    Object.assign(dbScene, scene);
+    await saveScenes(room);
+    let saved = await room.save();
+    let savedScene = saved.scenes.find(i => i._id == scene._id);
+    callback(null, savedScene.toObject());
+
+  }catch(err){
+    callback(err, null);
+  }
+}
+exports.createScene = async function (serviceId, roomId, scene, callback) {
+  try{
+    let service = await Service.findById(serviceId).lean().exec();
+    
+    var i, match = false;
+    for (i = 0; i < service.rooms.length; i++) {
+      if (service.rooms[i].toString() === roomId) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match) return callback(null, null);
+
+    let room = await Room.findById(roomId).exec();
+
+    if(scene._id)
+      delete scene._id;
+    room.scenes.push(scene);
+    await saveScenes(room);
+    let saved = await room.save();
+    let savedScene = saved.scenes[saved.scenes.length-1];
+    callback(null, savedScene.toObject());
+
+  }catch(err){
+    callback(err, null);
+  }
+}
+
 exports.listScene = function (serviceId, roomId, options, callback) {
   Service.findById(serviceId).lean().exec(function (err, service) {
     
@@ -240,23 +368,197 @@ exports.listScene = function (serviceId, roomId, options, callback) {
 
     if (!match) return callback(null, null);
 
-    var popOption = {
-      path: 'scenes',
-      options: { sort: {_id: 1} }
-    };
+    let start = 0;
+    let end = undefined;
     if (options) {
       if (typeof options.per_page === 'number' && options.per_page > 0) {
-        popOption.options.limit = options.per_page;
+        start = options.per_page;
         if (typeof options.page === 'number' && options.page > 0) {
-          popOption.options.skip = (options.page - 1) * options.per_page;
+          end = (options.page - 1) * options.per_page;
         }
       }
     }
-    Room.findById(roomId).populate(popOption).lean().exec(function (err, room) {
-        return callback(err, room.scenes);
+
+    Room.findById(roomId).lean().exec(function (err, room) {
+        return callback(err, room.scenes.slice(start, end));
     });
   });
 };
+
+exports.createStaticParticipant = async function (serviceId, roomId, staticParticipant, callback) {
+  try{
+    let service = await Service.findById(serviceId).lean().exec();
+    
+    var i, match = false;
+    for (i = 0; i < service.rooms.length; i++) {
+      if (service.rooms[i].toString() === roomId) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match) throw new Error("Room not found");
+
+    let room = await Room.findById(roomId).exec();
+
+    if(staticParticipant._id)
+      delete staticParticipant._id;
+
+    let prepareRoom = {staticParticipants:[staticParticipant]};
+    await saveStaticParticipants(prepareRoom);
+    
+    room.staticParticipants.push(prepareRoom.staticParticipants[0]);
+
+    let saved = await room.save();
+
+    let savedStaticParticipant = saved.staticParticipants[saved.staticParticipants.length - 1];
+
+    callback(null, savedStaticParticipant.toObject());
+
+  }catch(err){
+    callback(err, null);
+  }
+}
+
+exports.updateStaticParticipant = async function (serviceId, roomId, staticParticipantOption, callback) {
+  try{
+    let service = await Service.findById(serviceId).lean().exec();
+    
+    var i, match = false;
+    for (i = 0; i < service.rooms.length; i++) {
+      if (service.rooms[i].toString() === roomId) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match) throw new Error("Room not found");
+
+    let room = await Room.findById(roomId).exec();
+
+    let staticParticipant = room.staticParticipants.find(i => i._id == staticParticipantOption._id);
+
+    if (!staticParticipant) throw new Error("StaticParticipant not found");
+
+    let prepareRoom = {staticParticipants:[staticParticipantOption]};
+    await saveStaticParticipants(prepareRoom);
+
+    Object.assign(staticParticipant, prepareRoom.staticParticipants[0]);
+
+    let saved = await room.save();
+
+    let savedStaticParticipant = prepareRoom.staticParticipants[0];
+
+    callback(null, savedStaticParticipant);
+
+  }catch(err){
+    callback(err, null);
+  }
+}
+
+exports.deleteStaticParticipant = async function (serviceId, roomId, staticParticipantId, callback) {
+  try{
+    let service = await Service.findById(serviceId).lean().exec();
+    
+    var i, match = false;
+    for (i = 0; i < service.rooms.length; i++) {
+      if (service.rooms[i].toString() === roomId) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match) throw new Error("Room not found");
+
+    let room = await Room.findById(roomId).exec();
+
+    let staticParticipant = room.staticParticipants.find(i => i._id == staticParticipantId);
+
+    if (!staticParticipant) throw new Error("StaticParticipant not found");
+
+    room.staticParticipants = room.staticParticipants.filter(i => i._id != staticParticipantId);
+
+    room.save();
+
+    // remove relative
+    {
+      // remove Image
+      staticParticipant.preview && await Room.ImageSchema.deleteOne({_id: staticParticipant.preview}).exec();
+      staticParticipant.avatarData && await Room.ImageSchema.deleteOne({_id: staticParticipant.avatarData}).exec();
+
+      // remove Overlay
+      if(staticParticipant.overlays){
+        await Promise.all(staticParticipant.overlays.map(async i => {
+          let overlay =  await Room.OverlaySchema.findById(i).exec();
+          overlay.imageData && await Room.ImageSchema.deleteOne({_id: overlay.imageData}).exec();
+          await Room.OverlaySchema.deleteOne({_id: overlay._id});
+        }));
+      }
+    }
+
+    callback(null, staticParticipantId);
+
+  }catch(err){
+    callback(err, null);
+  }
+}
+
+exports.getStaticParticipant = async function (serviceId, roomId, staticParticipantId, callback) {
+  try{
+    let service = await Service.findById(serviceId).lean().exec();
+    
+    var i, match = false;
+    for (i = 0; i < service.rooms.length; i++) {
+      if (service.rooms[i].toString() === roomId) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match) throw new Error("Room not found");
+
+    let room = await Room.findById(roomId).exec();
+
+    let staticParticipantIdx = room.staticParticipants.findIndex(i => i._id == staticParticipantId);
+
+    if (staticParticipantIdx == -1) throw new Error("StaticParticipant not found");
+
+    room = await room
+      .populate(`staticParticipants.${staticParticipantIdx}.avatarData`)
+      .populate({path:`staticParticipants.${staticParticipantIdx}.overlays`,populate:"imageData"}).execPopulate();
+
+    let staticParticipant = room.staticParticipants[staticParticipantIdx];
+
+    callback(null, staticParticipant.toObject());
+
+  }catch(err){
+    callback(err, null);
+  }
+}
+
+exports.listStaticParticipant = async function (serviceId, roomId, callback) {
+  try{
+    let service = await Service.findById(serviceId).lean().exec();
+    
+    var i, match = false;
+    for (i = 0; i < service.rooms.length; i++) {
+      if (service.rooms[i].toString() === roomId) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match) throw new Error("Room not found");
+
+    let room = await Room.findById(roomId).populate("staticParticipants.preview").exec();
+
+    callback(null, room.staticParticipants.toObject());
+
+  }catch(err){
+    callback(err, null);
+  }
+  
+}
 
 /*
  * Delete Room. Removes a determined room from the data base.
@@ -277,12 +579,17 @@ exports.delete = function (serviceId, roomId, callback) {
 exports.update = function (serviceId, roomId, updates, callback) {
   removeNull(updates);
   var labels = getAudioOnlyLabels(updates);
-  Room.findById(roomId).then((room) => {
+  Room.findById(roomId).then(async (room) => {
+
     var newRoom = Object.assign(room, updates);
     if (!checkMediaOut(newRoom, updates)) {
       throw new Error('MediaOut conflicts with View Setting');
     }
-    return newRoom.save();
+
+    await saveImage(updates);
+    await saveScenes(updates);
+
+    return await newRoom.save();
   }).then((saved) => {
     if (labels.length > 0) {
       updateAudioOnlyViews(labels, saved, callback);
@@ -301,6 +608,7 @@ exports.config = function (roomId) {
   return new Promise((resolve, reject) => {
     Room.findById(roomId)
     .populate("staticParticipants.avatarData")
+    .populate({path:"staticParticipants.overlays",populate:"imageData"})
     .populate("scenes.bgImageData")
     .populate({path:"scenes.overlays",populate:"imageData"})
     .exec( function (err, room) {

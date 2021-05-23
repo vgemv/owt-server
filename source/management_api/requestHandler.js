@@ -147,6 +147,81 @@ exports.getParticipantsInRoom = function (roomId, callback) {
     });
 };
 
+exports.updateScene = function (roomId, scene, updates, callback) {
+  return validateId('Room ID', roomId)
+    .then((ok) => {
+      return validateId('Scene ID', scene);
+    }).then((ok) => {
+      return getRoomController(roomId);
+    }).then((controller) => {
+      rpc.callRpc(controller, 'updateScene', [scene, updates], {callback: function (result) {
+        if (result === 'error' || result === 'timeout') {
+          callback('error');
+        } else {
+          callback(result);
+        }
+      }});
+    }).catch((err) => {
+      callback('error');
+    });
+};
+
+exports.deleteScene = function (roomId, scene, callback) {
+  return validateId('Room ID', roomId)
+    .then((ok) => {
+      return validateId('Scene ID', scene);
+    }).then((ok) => {
+      return getRoomController(roomId);
+    }).then((controller) => {
+      rpc.callRpc(controller, 'dropScene', [scene], {callback: function (result) {
+        if (result === 'error' || result === 'timeout') {
+          callback('error');
+        } else {
+          callback(result);
+        }
+      }});
+    }).catch((err) => {
+      callback('error');
+    });
+};
+exports.updateStaticParticipant = function (roomId, participant, updates, callback) {
+  return validateId('Room ID', roomId)
+    .then((ok) => {
+      return validateId('Participant ID', participant);
+    }).then((ok) => {
+      return getRoomController(roomId);
+    }).then((controller) => {
+      rpc.callRpc(controller, 'updateStaticParticipant', [participant, updates], {callback: function (result) {
+        if (result === 'error' || result === 'timeout') {
+          callback('error');
+        } else {
+          callback(result);
+        }
+      }});
+    }).catch((err) => {
+      callback('error');
+    });
+};
+
+exports.deleteStaticParticipant = function (roomId, participant, callback) {
+  return validateId('Room ID', roomId)
+    .then((ok) => {
+      return validateId('Participant ID', participant);
+    }).then((ok) => {
+      return getRoomController(roomId);
+    }).then((controller) => {
+      rpc.callRpc(controller, 'dropStaticParticipant', [participant], {callback: function (result) {
+        if (result === 'error' || result === 'timeout') {
+          callback('error');
+        } else {
+          callback(result);
+        }
+      }});
+    }).catch((err) => {
+      callback('error');
+    });
+};
+
 exports.updateParticipant = function (roomId, participant, updates, callback) {
   return validateId('Room ID', roomId)
     .then((ok) => {

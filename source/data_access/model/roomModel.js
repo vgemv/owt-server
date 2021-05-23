@@ -127,22 +127,11 @@ var StaticParticipantSchema = new Schema({
   name: { type: String, require: true },
   avatarData: { type: Schema.Types.ObjectId, ref: 'Image' }, // 默认图片
   avatarUri: { type: String }, // 默认图片url
+  preview: { type: Schema.Types.ObjectId, ref: 'Image' },
   overlays: [ { type: Schema.Types.ObjectId, ref: 'Overlay' } ],
   user: { type: String, require: true },
-  role: { type: String, require: true },
-  permission: {
-    publish: {
-      video: { type: Boolean, default: true },
-      audio: { type: Boolean, default: true }
-    },
-    subscribe: {
-      video: { type: Boolean, default: true },
-      audio: { type: Boolean, default: true }
-    }
-  },
   disabled:  { type: Boolean, default: false }
-},
-{ _id: false });
+});
 
 
 var SceneSchema = new Schema({
@@ -160,6 +149,7 @@ var SceneSchema = new Schema({
 var OverlayTemplateSchema = new Schema({
   name: { type: String, require: true },
   editable: { type: Boolean },
+  preview: { type: Schema.Types.ObjectId, ref: 'Image' },
   overlays: [ { type: Schema.Types.ObjectId, ref: 'OverlayTemplate' } ]
 });
 
@@ -243,6 +233,7 @@ RoomSchema.statics.ViewSchema = mongoose.model('View', ViewSchema);
 RoomSchema.statics.ImageSchema = mongoose.model('Image', ImageSchema);
 RoomSchema.statics.OverlaySchema = mongoose.model('Overlay', OverlaySchema);
 RoomSchema.statics.SceneSchema = mongoose.model('Scene', SceneSchema);
+RoomSchema.statics.StaticParticipantSchema = mongoose.model('StaticParticipant', StaticParticipantSchema);
 RoomSchema.statics.OverlayTemplateSchema = mongoose.model('OverlayTemplate', OverlayTemplateSchema);
 
 RoomSchema.statics.processLayout = function(room) {

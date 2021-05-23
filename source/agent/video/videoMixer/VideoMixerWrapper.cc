@@ -31,6 +31,7 @@ void VideoMixer::Init(Handle<Object> exports, Handle<Object> module) {
   NODE_SET_PROTOTYPE_METHOD(tpl, "removeOutput", removeOutput);
   NODE_SET_PROTOTYPE_METHOD(tpl, "updateLayoutSolution", updateLayoutSolution);
   NODE_SET_PROTOTYPE_METHOD(tpl, "updateSceneSolution", updateSceneSolution);
+  NODE_SET_PROTOTYPE_METHOD(tpl, "updateInputOverlay", updateInputOverlay);
   NODE_SET_PROTOTYPE_METHOD(tpl, "forceKeyFrame", forceKeyFrame);
   NODE_SET_PROTOTYPE_METHOD(tpl, "drawText", drawText);
   NODE_SET_PROTOTYPE_METHOD(tpl, "clearText", clearText);
@@ -467,7 +468,8 @@ void VideoMixer::updateInputOverlay(const v8::FunctionCallbackInfo<v8::Value>& a
       overlay.y = overlayObj->Get(String::NewFromUtf8(isolate, "y"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
       overlay.width = overlayObj->Get(String::NewFromUtf8(isolate, "width"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
       overlay.height = overlayObj->Get(String::NewFromUtf8(isolate, "height"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
-      overlay.disabled = overlayObj->Get(String::NewFromUtf8(isolate, "disabled"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->BooleanValue(Nan::GetCurrentContext()).ToChecked();
+      if(overlayObj->Has(String::NewFromUtf8(isolate, "disabled")))
+        overlay.disabled = overlayObj->Get(String::NewFromUtf8(isolate, "disabled"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->BooleanValue(Nan::GetCurrentContext()).ToChecked();
 
       overlays.push_back(overlay);
     }

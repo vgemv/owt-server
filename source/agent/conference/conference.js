@@ -2030,6 +2030,24 @@ var Conference = function (rpcClient, selfRpcId) {
     }
   };
 
+  that.dropScene = function(id, callback) {
+    log.debug('dropScene', id);
+    
+    room_config.scenes = room_config.scenes.filter(i => i._id != id);
+
+    callback('callback', true);
+  };
+
+  that.updateScene = function(id, updated, callback) {
+    log.debug('updateScene', id);
+
+    let found = room_config.scenes.find(i => i._id == id);
+    if(found){
+      Object.assign(found, scenes);
+    }
+
+    callback('callback', true);
+  };
   that.dropParticipant = function(participantId, callback) {
     log.debug('dropParticipant', participantId);
     return doDropParticipant(participantId)
@@ -2038,6 +2056,32 @@ var Conference = function (rpcClient, selfRpcId) {
       }).catch((reason) => {
         callback('callback', 'error', reason.message ? reason.message : reason);
       });
+  };
+
+  that.updateStaticParticipant = function(id, updated, callback) {
+    log.debug('updateStaticParticipant', id);
+
+    let found = room_config.staticParticipants.find(i => i._id == id);
+    if(found){
+      Object.assign(found, updated);
+    }
+    else {
+      room_config.staticParticipants.push(updated);
+    }
+
+    roomController.updateStaticParticipant(id, updated);
+
+    callback('callback', true);
+  };
+
+  that.dropStaticParticipant = function(id, callback) {
+    log.debug('dropStaticParticipant', id);
+
+    room_config.staticParticipants = room_config.staticParticipants.filter(i => i._id != id);
+
+    roomController.dropStaticParticipant(id);
+
+    callback('callback', true);
   };
 
   that.getStreams = function(callback) {
@@ -2878,6 +2922,10 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     unsubscribe: conference.unsubscribe,
     subscriptionControl: conference.subscriptionControl,
     onSessionSignaling: conference.onSessionSignaling,
+
+    //
+    dropStaticParticipant: conference.dropStaticParticipant,
+    updateStaticParticipant: conference.updateStaticParticipant,
 
     //rpc from access nodes.
     onSessionProgress: conference.onSessionProgress,

@@ -409,6 +409,15 @@ void SoftFrameGenerator::updateSceneSolution(SceneSolution& solution)
 void SoftFrameGenerator::updateInputOverlay(int inputId, std::vector<Overlay>& overlays)
 {
     if(inputId >= 0){
+
+        for (std::vector<Overlay>::iterator ito = overlays.begin(); ito != overlays.end(); ++ito) {
+            if(ito->image){
+                if (ImageHelper::getVideoFrame(ito->image->data, ito->image->size, ito->imageBuffer) != 0){
+                    ELOG_WARN_T("configured overlay image is invalid!");
+                }
+            }
+        }
+
         m_newInputOverlays[inputId] = overlays;
         m_configureChanged  = true;
     }
@@ -518,6 +527,82 @@ rtc::scoped_refptr<webrtc::VideoFrameBuffer> SoftFrameGenerator::generateFrame()
 {
     reconfigureIfNeeded();
     return layout();
+}
+
+static void expandRational(Rational& a, Rational& b){
+
+    uint32_t denominator = std::max(a.denominator, b.denominator);
+    if(std::max(a.denominator, b.denominator) < 1000){
+        denominator = 1000;
+    }
+    else if(a.denominator == b.denominator)return;
+
+    a.numerator = a.numerator * denominator / a.denominator;
+    b.numerator = b.numerator * denominator / b.denominator;
+
+    a.denominator = b.denominator = denominator;
+}
+
+void SoftFrameGenerator::calculateTweenLayout()
+{
+    const double SPEED = 5;
+
+    for (LayoutSolution::const_iterator it = m_targetLayout.begin(); it != m_targetLayout.end(); ++it) {
+        int input = it->input;
+        Region region = it->region;
+
+        auto found = std::find_if(m_layout.begin(), m_layout.end(), [input](InputRegion& r){
+            return r.input == input;
+        });
+
+        // not found, no tween.
+        if(found == m_layout.end()){
+            m_layout.push_back(*it);
+            continue;
+        }
+        
+        // only rectangle supported
+        if(region.shape != "rectangle"){
+            m_layout.erase(found);
+            m_layout.push_back(*it);
+            continue;
+        }
+
+        // ELOG_ERROR_T("tween1 inputid(%d), left(%u/%u), top(%u/%u), width(%u/%u), height(%u/%u) - target left(%u/%u), top(%u/%u), width(%u/%u), height(%u/%u)",
+        //     input,
+        //     found->region.area.rect.left.numerator, found->region.area.rect.left.denominator,
+        //     found->region.area.rect.top.numerator, found->region.area.rect.top.denominator,
+        //     found->region.area.rect.width.numerator, found->region.area.rect.width.denominator,
+        //     found->region.area.rect.height.numerator, found->region.area.rect.height.denominator,
+        //     region.area.rect.left.numerator, region.area.rect.left.denominator,
+        //     region.area.rect.top.numerator, region.area.rect.top.denominator,
+        //     region.area.rect.width.numerator, region.area.rect.width.denominator,
+        //     region.area.rect.height.numerator, region.area.rect.height.denominator
+        // );
+
+        expandRational(found->region.area.rect.left, region.area.rect.left);
+        expandRational(found->region.area.rect.top, region.area.rect.top);
+        expandRational(found->region.area.rect.width, region.area.rect.width);
+        expandRational(found->region.area.rect.height, region.area.rect.height);
+
+        found->region.area.rect.left.numerator += ((double)region.area.rect.left.numerator - found->region.area.rect.left.numerator) / SPEED;
+        found->region.area.rect.top.numerator += ((double)region.area.rect.top.numerator - found->region.area.rect.top.numerator) / SPEED;
+        found->region.area.rect.width.numerator += ((double)region.area.rect.width.numerator - found->region.area.rect.width.numerator) / SPEED;
+        found->region.area.rect.height.numerator += ((double)region.area.rect.height.numerator - found->region.area.rect.height.numerator) / SPEED;
+
+        // ELOG_ERROR_T("tween inputid(%d), left(%u/%u), top(%u/%u), width(%u/%u), height(%u/%u) - target left(%u/%u), top(%u/%u), width(%u/%u), height(%u/%u)",
+        //     input,
+        //     found->region.area.rect.left.numerator, found->region.area.rect.left.denominator,
+        //     found->region.area.rect.top.numerator, found->region.area.rect.top.denominator,
+        //     found->region.area.rect.width.numerator, found->region.area.rect.width.denominator,
+        //     found->region.area.rect.height.numerator, found->region.area.rect.height.denominator,
+        //     region.area.rect.left.numerator, region.area.rect.left.denominator,
+        //     region.area.rect.top.numerator, region.area.rect.top.denominator,
+        //     region.area.rect.width.numerator, region.area.rect.width.denominator,
+        //     region.area.rect.height.numerator, region.area.rect.height.denominator
+        // );
+
+    }
 }
 
 void SoftFrameGenerator::layout_regions(SoftFrameGenerator *t, rtc::scoped_refptr<webrtc::I420Buffer> compositeBuffer, const LayoutSolution &regions)
@@ -733,6 +818,8 @@ rtc::scoped_refptr<webrtc::VideoFrameBuffer> SoftFrameGenerator::layout()
                 libyuv::kFilterBox);
     }
 
+    calculateTweenLayout();
+
     bool isParallelFrameComposition = m_parallelNum > 1 && m_layout.size() > 4;
 
     if (isParallelFrameComposition) {
@@ -780,7 +867,7 @@ void SoftFrameGenerator::reconfigureIfNeeded()
         if (!m_configureChanged)
             return;
 
-        m_layout = m_newLayout;
+        m_targetLayout = m_newLayout;
         m_overlays = m_newOverlays;
 
         for(std::map<int,std::vector<Overlay>>::const_iterator it = m_newInputOverlays.begin(); it != m_newInputOverlays.end(); it++){

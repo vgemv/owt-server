@@ -100,11 +100,13 @@ function LayoutProcessor(layouts, staticInputNum) {
 util.inherits(LayoutProcessor, EventEmitter);
 
 LayoutProcessor.prototype.setStaticInputNum = function(num) {
+    let notStaticInputList = this.inputList.slice(this.staticInputNum);
     this.staticInputNum = num;
     this.inputList = [];
     for(let i=0; i<num; i++){
         this.inputList.push(i);
     }
+    this.inputList = [...this.inputList, ...notStaticInputList];
     this.choseTemplate(this.inputList.length);
     this.updateInputPositions();
 }

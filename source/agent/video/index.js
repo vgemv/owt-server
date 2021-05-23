@@ -400,6 +400,19 @@ function VMixer(rpcClient, clusterIP) {
 
     that.initialize = function (videoConfig, belongTo, layoutcontroller, mixView, callback) {
         log.debug('initEngine, videoConfig:', JSON.stringify(videoConfig));
+        if(videoConfig.staticParticipants)
+            staticParticipants = videoConfig.staticParticipants.map(i => {
+                if(i.avatarData)
+                    i.avatarData = new Buffer(i.avatarData.data || i.avatarData, "base64");
+                if(i.overlays){
+                    i.overlays.forEach(i => {
+                        if(i.imageData){
+                            i.imageData = new Buffer(i.imageData.data || i.imageData, "base64");
+                        }
+                    })
+                }
+                return i;
+            });
         var config = {
             'hardware': useHardware,
             'maxinput': videoConfig.maxInput || 16,
@@ -410,11 +423,9 @@ function VMixer(rpcClient, clusterIP) {
             'crop': (videoConfig.layout.fitPolicy === 'crop' ? true : false),
             'gaccplugin': gaccPluginEnabled,
             'MFE_timeout': MFE_timeout,
-            'avatars': videoConfig.staticParticipants? videoConfig.staticParticipants.map(o => new Buffer(o.avatarData.data, "base64")): []
+            'avatars': videoConfig.staticParticipants? videoConfig.staticParticipants.map(o => o.avatarData): []
         };
 
-        if(videoConfig.staticParticipants)
-            staticParticipants = videoConfig.staticParticipants;
 
         inputManager = new InputManager(videoConfig.maxInput, staticParticipants.length);
         engine = new VideoMixer(config);
@@ -482,6 +493,9 @@ function VMixer(rpcClient, clusterIP) {
         default_kfi = (videoConfig.parameters.keyFrameInterval || 1000);
 
         layoutProcessor.setStaticInputNum(videoConfig.staticParticipants.length);
+        staticParticipants.forEach((i,idx) => {
+            engine.updateInputOverlay(idx, i.overlays);
+        })
 
         log.debug('Video engine init OK, supported_codecs:', supported_codecs);
         callback('callback', {codecs: supported_codecs});
@@ -761,7 +775,8 @@ function VMixer(rpcClient, clusterIP) {
             })
         }
 
-        engine.updateInputOverlays(inputId, overlays);
+        engine.updateInputOverlay(inputId, overlays);
+        callback('callback', true);
     }
 
     that.setScene = function (scene, callback) {
@@ -774,10 +789,10 @@ function VMixer(rpcClient, clusterIP) {
             var current_streams = [];
 
             inputManager.getStreamList().map((stream_id) => {
-                let input = inputManager.remove(stream_id);
-                if (input.id >= 0) {
-                    engine.removeInput(input.id);
-                }
+                let input = inputManager.get(stream_id);
+                // if (input.id >= 0) {
+                //     engine.removeInput(input.id);
+                // }
 
                 input.stream = stream_id;
 
@@ -795,11 +810,12 @@ function VMixer(rpcClient, clusterIP) {
             });
 
             current_streams.forEach((obj) => {
-                let input = obj.id >= 0?
-                    inputManager.set(obj.stream, obj.id, obj.codec, obj.conn, obj.avatar):
-                    inputManager.add(obj.stream, obj.codec, obj.conn, obj.avatar);
+                // let input = obj.id >= 0?
+                //     inputManager.set(obj.stream, obj.id, obj.codec, obj.conn, obj.avatar):
+                //     inputManager.add(obj.stream, obj.codec, obj.conn, obj.avatar);
+                let input  = obj.id;
                 if (input >= 0) {
-                    engine.addInput(input, obj.codec, obj.conn, obj.avatar);
+                    // engine.addInput(input, obj.codec, obj.conn, obj.avatar);
                     if (specified_streams.indexOf(obj.stream) < 0) {
                     for (var i in layout) {
                         if (!layout[i].stream && layout[i].input === undefined) {
@@ -836,6 +852,58 @@ function VMixer(rpcClient, clusterIP) {
           callback('callback', 'error', 'layoutProcessor failed');
         });
     };
+
+    that.dropStaticParticipant = function (id, callback) {
+        log.debug(`dropStaticParticipant, id: ${id}`);
+        let idx = staticParticipants.findIndex(i => i._id == id);
+        if(idx >= 0){
+            staticParticipants.splice(idx, 1);
+            inputManager.setStaticInput(staticParticipants.length);
+            layoutProcessor.setStaticInputNum(staticParticipants.length);
+
+            // TODO: deal with overlays?
+            that.setInputOverlay(idx, [], ()=>{});
+            staticParticipants.forEach((i, idx) => {
+                if(i.avatarData){
+                    engine.setAvatar(idx, i.avatarData);
+                }
+            })
+            callback('callback', true);
+        } else {
+            callback('callback', false);
+        }
+    }
+
+    that.updateStaticParticipant = function (id, updated, callback) {
+        log.debug(`updateStaticParticipant, id: ${id}`);
+        let idx = staticParticipants.findIndex(i => i._id == id);
+        let found = staticParticipants[idx];
+        if(idx == -1)idx = staticParticipants.length ;
+
+        if(updated.avatarData){
+            updated.avatarData = new Buffer(updated.avatarData.data || updated.avatarData, "base64");
+            engine.setAvatar(idx, updated.avatarData);
+        }
+        if(updated.overlays){
+            updated.overlays.forEach(i => {
+                if(i.imageData){
+                    i.imageData = new Buffer(i.imageData.data || i.imageData, "base64");
+                }
+            })
+            // TODO: use callback?
+            that.setInputOverlay(idx, updated.overlays, ()=>{});
+        }
+
+        if(found){
+            Object.assign(found, updated);
+        } else {
+            staticParticipants.push(updated);
+            inputManager.setStaticInput(staticParticipants.length);
+            layoutProcessor.setStaticInputNum(staticParticipants.length);
+        }
+
+        callback('callback', true);
+    }
 
     that.setLayout = function (layout, callback) {
         log.debug('setLayout, layout:', JSON.stringify(layout));

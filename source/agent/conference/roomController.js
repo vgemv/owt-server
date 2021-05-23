@@ -1860,6 +1860,43 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         on_ok();
     };
 
+    that.dropStaticParticipant = function (staticParticipantId, on_ok, on_error) {
+        log.debug('dropStaticParticipant, staticParticipantId:', staticParticipantId);
+
+        Object.keys(mix_views).forEach(view => {
+            var video_mixer = getSubMediaMixer(view, 'video');
+            if (video_mixer) {
+                makeRPC(
+                    rpcClient,
+                    terminals[video_mixer].locality.node,
+                    'dropStaticParticipant',
+                    [staticParticipantId],
+                    // TODO: use callback?
+                    ()=>{},
+                    ()=>{});
+            }
+        })
+    };
+
+    that.updateStaticParticipant = function (staticParticipantId, updated, on_ok, on_error) {
+        log.debug('updateStaticParticipant, staticParticipantId:', staticParticipantId);
+
+        Object.keys(mix_views).forEach(view => {
+            var video_mixer = getSubMediaMixer(view, 'video');
+            if (video_mixer) {
+                makeRPC(
+                    rpcClient,
+                    terminals[video_mixer].locality.node,
+                    'updateStaticParticipant',
+                    [staticParticipantId, updated],
+                    // TODO: use callback?
+                    ()=>{},
+                    ()=>{});
+            }
+        })
+    };
+    
+
     that.getRegion = function (stream_id, fromView, on_ok, on_error) {
         log.debug('getRegion, stream_id:', stream_id, 'fromView', fromView);
         var video_mixer = getSubMediaMixer(fromView, 'video');

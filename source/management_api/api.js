@@ -75,7 +75,7 @@ app.options('*', function(req, res) {
 });
 
 // Only following paths need authentication.
-var authPaths = ['/v1/rooms*', '/v1.1/rooms*', '/services*', '/cluster*'];
+var authPaths = ['/v1/rooms*', '/v1.1/rooms*', '/jsrtc.v1/rooms*', '/services*', '/cluster*'];
 app.get(authPaths, serverAuthenticator.authenticate);
 app.post(authPaths, serverAuthenticator.authenticate);
 app.delete(authPaths, serverAuthenticator.authenticate);
@@ -95,6 +95,9 @@ app.use('/v1', routerV1);
 // API for version 1.1.
 var routerV1_1 = require('./resource/v1.1');
 app.use('/v1.1', routerV1_1);
+
+var routerJsrtcV1 = require('./resource/jsrtc.v1');
+app.use('/jsrtc.v1', routerJsrtcV1);
 
 // for path not match
 app.use('*', function(req, res, next) {
