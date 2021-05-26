@@ -62,6 +62,10 @@ var RpcRequest = function(rpcChannel) {
     return rpcChannel.makeRPC(accessNode, 'mediaOnOff', [sessionId, track, direction, onOff]);
   };
 
+  that.getMediaStats = function(accessNode, sessionId, track) {
+    return rpcChannel.makeRPC(accessNode, 'getMediaStats', [sessionId, track]);
+  };
+
   that.sendMsg = function(portal, participantId, event, data) {
     return rpcChannel.makeRPC(portal, 'notify', [participantId, event, data]);
   };

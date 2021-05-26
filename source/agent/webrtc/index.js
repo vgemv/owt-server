@@ -343,6 +343,29 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
         }
     };
 
+    that.getMediaStats = function (connectionId, tracks, callback) {
+        log.debug('getMediaStats, connection id:', connectionId, 'tracks:', tracks);
+        var conn = getWebRTCConnection(connectionId);
+        var promises;
+        if (conn) {
+            promises = tracks.map(async trackId => {
+                if (mediaTracks.has(trackId)) {
+                    return new Promise(o => mediaTracks.get(trackId).getStats(o))
+                }
+            });
+
+            Promise.all(promises).then((result) => {
+                callback('callback', result);
+            }).catch(reason => {
+                callback('callback', 'error', reason);
+            });
+
+        } else {
+          log.info('WebRTC Connection does NOT exist:' + connectionId);
+          callback('callback', 'error', 'Connection does NOT exist:' + connectionId);
+        }
+    };
+
     that.mediaOnOff = function (connectionId, tracks, direction, action, callback) {
         log.debug('mediaOnOff, connection id:', connectionId, 'tracks:', tracks, 'direction:', direction, 'action:', action);
         var conn = getWebRTCConnection(connectionId);

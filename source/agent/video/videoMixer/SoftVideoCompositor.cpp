@@ -547,6 +547,8 @@ void SoftFrameGenerator::calculateTweenLayout()
 {
     const double SPEED = 5;
 
+    LayoutSolution result;
+
     for (LayoutSolution::const_iterator it = m_targetLayout.begin(); it != m_targetLayout.end(); ++it) {
         int input = it->input;
         Region region = it->region;
@@ -557,14 +559,16 @@ void SoftFrameGenerator::calculateTweenLayout()
 
         // not found, no tween.
         if(found == m_layout.end()){
-            m_layout.push_back(*it);
+            // m_layout.push_back(*it);
+            result.push_back(*it);
             continue;
         }
         
         // only rectangle supported
         if(region.shape != "rectangle"){
-            m_layout.erase(found);
-            m_layout.push_back(*it);
+            // m_layout.erase(found);
+            // m_layout.push_back(*it);
+            result.push_back(*it);
             continue;
         }
 
@@ -590,6 +594,7 @@ void SoftFrameGenerator::calculateTweenLayout()
         found->region.area.rect.width.numerator += ((double)region.area.rect.width.numerator - found->region.area.rect.width.numerator) / SPEED;
         found->region.area.rect.height.numerator += ((double)region.area.rect.height.numerator - found->region.area.rect.height.numerator) / SPEED;
 
+        result.push_back(*found);
         // ELOG_ERROR_T("tween inputid(%d), left(%u/%u), top(%u/%u), width(%u/%u), height(%u/%u) - target left(%u/%u), top(%u/%u), width(%u/%u), height(%u/%u)",
         //     input,
         //     found->region.area.rect.left.numerator, found->region.area.rect.left.denominator,
@@ -603,6 +608,8 @@ void SoftFrameGenerator::calculateTweenLayout()
         // );
 
     }
+
+    m_layout = result;
 }
 
 void SoftFrameGenerator::layout_regions(SoftFrameGenerator *t, rtc::scoped_refptr<webrtc::I420Buffer> compositeBuffer, const LayoutSolution &regions)
@@ -715,6 +722,27 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
             uint32_t dst_y= ito->y * area_width + area_y;
             uint32_t dst_width = ito->width * area_width;
             uint32_t dst_height = ito->height * area_width;
+
+            if(dst_x + dst_width > composite_width){
+                double rate = src_width / (double)dst_width;
+                dst_width = composite_width - dst_x;
+                src_width = dst_width * rate;
+            }
+            if(dst_y + dst_height > composite_height){
+                double rate = src_height / (double)dst_height;
+                dst_height = composite_height - dst_y;
+                src_height = dst_height * rate;
+            }
+
+            src_x               &= ~1;
+            src_y               &= ~1;
+            src_width           &= ~1;
+            src_height          &= ~1;
+            dst_x               &= ~1;
+            dst_y               &= ~1;
+            dst_width           &= ~1;
+            dst_height          &= ~1;
+
             int ret = libyuv::I420Scale(
                     inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
                     inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),

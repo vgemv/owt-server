@@ -275,6 +275,22 @@ module.exports.create = function(spec, rpcReq, on_session_established, on_sessio
     return Promise.resolve('ok');
   };
 
+  that.getMediaStats = function(sessionId, track) {
+    log.debug('getMediaStats, sessionId:', sessionId);
+
+    if (!sessions[sessionId]) {
+      return Promise.reject('Session does NOT exist');
+    }
+
+    var session = sessions[sessionId]
+
+    if (session.options.type !== 'webrtc') {
+      return Promise.reject('Session does NOT support getStats');
+    }
+
+    return rpcReq.getMediaStats(session.locality.node, sessionId, track);
+  };
+
   that.setMute = function(sessionId, track, muted) {
     log.debug('setMute, sessionId:', sessionId, 'muted:', muted);
 

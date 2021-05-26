@@ -27,16 +27,12 @@ exports.create = function (req, res, next) {
 
     var options = req.body.options;
     options.name = req.body.name;
-    dataAccess.room.createScene(authData.service._id, req.params.room, options, function(err, result) {
+    var optionsCopy = {...options, overlays: options.overlays.map(i=>({...i}))};
+    dataAccess.room.createScene(authData.service._id, req.params.room, optionsCopy, function(err, result) {
         if (!err && result) {
             log.debug('Scene created:', req.body.name, 'for service', authData.service.name);
+            requestHandler.updateScene(req.params.room, result._id.toString(), options, ()=>{});
             res.send(result);
-
-            // Notify SIP portal if SIP room created
-            if (result && result.sip) {
-                log.info('Notify SIP Portal on create Room');
-                requestHandler.notifyCreateScene('create', result, function(){});
-            }
         } else {
             log.info('Scene creation failed', err ? err.message : options);
             next(err || new e.AppError('Create scene failed'));
@@ -68,9 +64,10 @@ exports.get = function (req, res, next) {
 
 exports.update = function (req, res, next) {
     var authData = req.authData;
-    var scene = req.body;
-    scene._id = req.params.scene;
-    dataAccess.room.updateScene(authData.service._id, req.params.room, scene, function(err, ret) {
+    var obj = req.body;
+    obj._id = req.params.scene;
+    var objCopy = {...obj, overlays: obj.overlays.map(i=>({...i}))};
+    dataAccess.room.updateScene(authData.service._id, req.params.room, objCopy, function(err, ret) {
         if(err){
             next(err);
         }
@@ -79,7 +76,7 @@ exports.update = function (req, res, next) {
             next(err);
         } else {
             log.info('Updated scene ', ret._id, 'of room ', req.params.room);
-            requestHandler.updateScene(req.params.room, ret._id, scene, ()=>{});
+            requestHandler.updateScene(req.params.room, ret._id.toString(), obj, ()=>{});
             res.send(ret);
         }
     });

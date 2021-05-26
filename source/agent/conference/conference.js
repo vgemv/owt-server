@@ -1526,6 +1526,18 @@ var Conference = function (rpcClient, selfRpcId) {
     });
   };
 
+  const getStreamStats = function(streamId) {
+
+    const affectedTracks = streams[streamId].media.tracks
+      .map(t => t.id);
+
+    if (affectedTracks.length === 0) {
+      return Promise.reject('Stream does NOT contain valid track to getStats');
+    }
+
+    return rtcController.getMediaStats(streamId, affectedTracks)
+  };
+
   const setStreamMute = function(streamId, track, muted) {
     if (streams[streamId].type === 'mixed') {
       return Promise.reject('Stream is Mixed');
@@ -1647,6 +1659,15 @@ var Conference = function (rpcClient, selfRpcId) {
         log.info('roomController.setScene failed, reason:', reason);
         reject(reason);
       });
+    });
+  };
+
+  that.getStreamStats = (streamId, callback) => {
+    return getStreamStats(streamId).then((result)=>{
+      callback('callback', result);
+    }, (err) => {
+      log.info('getMediaStats failed', err);
+      callback('callback', 'error', err.message ? err.message : err);
     });
   };
 
@@ -2041,9 +2062,12 @@ var Conference = function (rpcClient, selfRpcId) {
   that.updateScene = function(id, updated, callback) {
     log.debug('updateScene', id);
 
+    updated._id = id;
     let found = room_config.scenes.find(i => i._id == id);
     if(found){
-      Object.assign(found, scenes);
+      Object.assign(found, updated);
+    } else {
+      room_config.scenes.push(updated);
     }
 
     callback('callback', true);
@@ -2061,6 +2085,7 @@ var Conference = function (rpcClient, selfRpcId) {
   that.updateStaticParticipant = function(id, updated, callback) {
     log.debug('updateStaticParticipant', id);
 
+    updated._id = id;
     let found = room_config.staticParticipants.find(i => i._id == id);
     if(found){
       Object.assign(found, updated);
@@ -2926,6 +2951,9 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     //
     dropStaticParticipant: conference.dropStaticParticipant,
     updateStaticParticipant: conference.updateStaticParticipant,
+    updateScene: conference.updateScene,
+    dropScene: conference.dropScene,
+    getStreamStats: conference.getStreamStats,
 
     //rpc from access nodes.
     onSessionProgress: conference.onSessionProgress,

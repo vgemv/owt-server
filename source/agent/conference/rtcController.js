@@ -374,6 +374,23 @@ class RtcController extends EventEmitter {
     });
   };
 
+
+  getMediaStats(sessionId, tracks) {
+    log.debug('getMediaStats, sessionId:', sessionId);
+
+    if (!this.operations.has(sessionId)) {
+      log.debug(`operation does NOT exist:${sessionId}`);
+      return Promise.reject(`operation does NOT exist:${sessionId}`);
+    }
+
+    const operation = this.operations.get(sessionId);
+    const transport = this.transports.get(operation.transportId);
+    const locality = transport.locality;
+    return this.rpcReq.getMediaStats(
+        locality.node, sessionId, tracks)
+            .catch(reason => log.debug(`getMediaStats failed ${sessionId}`));;
+  };
+
   setMute(sessionId, tracks, muted) {
     log.debug(`setMute, sessionId: ${sessionId} tracks: ${tracks} muted: ${muted}`);
     if (!this.operations.has(sessionId)) {

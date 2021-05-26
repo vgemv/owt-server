@@ -449,27 +449,21 @@ function VMixer(rpcClient, clusterIP) {
             log.debug('sceneChange', sceneSolution);
             if (typeof engine.updateSceneSolution === 'function') {
                 
-                if (sceneSolution.bgImageID) {
-                    dataAccess.image.get(sceneSolution.bgImageID, (err, image)=>{
-                        sceneSolution.bgImageData = image.data;
-                        engine.updateSceneSolution(sceneSolution);
-                    });
-                } else{
-                    if(sceneSolution.bgImageData && typeof(sceneSolution.bgImageData) == "string"){
-                        sceneSolution.bgImageData = new Buffer(sceneSolution.bgImageData, "base64");
-                    }
-                    if(sceneSolution.bgImageData && sceneSolution.bgImageData.data && typeof(sceneSolution.bgImageData.data) == "string"){
-                        sceneSolution.bgImageData = new Buffer(sceneSolution.bgImageData.data, "base64");
-                    }
-
-                    if(sceneSolution.overlays){
-                        sceneSolution.overlays.forEach(o => {
-                            if(o.imageData && o.imageData.data && typeof(o.imageData.data) == "string")
-                                o.imageData = new Buffer(o.imageData.data, "base64");
-                        })
-                    }
-                    engine.updateSceneSolution(sceneSolution);
+                if(sceneSolution.bgImageData && typeof(sceneSolution.bgImageData) == "string"){
+                    sceneSolution.bgImageData = new Buffer(sceneSolution.bgImageData, "base64");
                 }
+                if(sceneSolution.bgImageData && sceneSolution.bgImageData.data && typeof(sceneSolution.bgImageData.data) == "string"){
+                    sceneSolution.bgImageData = new Buffer(sceneSolution.bgImageData.data, "base64");
+                }
+
+                if(sceneSolution.overlays){
+                    sceneSolution.overlays.forEach(o => {
+                        if(o.imageData && o.imageData.data && typeof(o.imageData.data) == "string")
+                            o.imageData = new Buffer(o.imageData.data, "base64");
+                    })
+                }
+                engine.updateSceneSolution(sceneSolution);
+            
             } else {
                 log.warn('No native method: updateSceneSolution');
             }

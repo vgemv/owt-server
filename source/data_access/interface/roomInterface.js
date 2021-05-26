@@ -27,7 +27,7 @@ async function saveOverlaysToIds(overlays) {
 
 async function saveScenes(room) {
 
-  await Promise.all(room.scenes.map(async item => {
+  room.scenes && room.scenes.map && await Promise.all(room.scenes.map(async item => {
     
       if(item.bgImageData && typeof(item.bgImageData) == "string"){
         let data = new Buffer(item.bgImageData, "base64");
@@ -41,7 +41,7 @@ async function saveScenes(room) {
 
 async function saveStaticParticipants(room) {
 
-  await Promise.all(room.staticParticipants.map(async item => {
+  room.staticParticipants && room.staticParticipants.map && await Promise.all(room.staticParticipants.map(async item => {
     
       if(item.avatarData && typeof(item.avatarData) == "string"){
         let data = new Buffer(item.avatarData, "base64");
@@ -314,11 +314,15 @@ exports.updateScene = async function (serviceId, roomId, scene, callback) {
 
     if(!dbScene) return callback(new Error("Scene not found"), null);
 
-    Object.assign(dbScene, scene);
-    await saveScenes(room);
-    let saved = await room.save();
-    let savedScene = saved.scenes.find(i => i._id == scene._id);
-    callback(null, savedScene.toObject());
+    let prepareRoom = {scenes:[scene]};
+    await saveScenes(prepareRoom);
+
+    Object.assign(dbScene, prepareRoom.scenes[0]);
+
+    await room.save();
+    let savedScene = prepareRoom.scenes[0];
+
+    callback(null, savedScene);
 
   }catch(err){
     callback(err, null);
@@ -342,10 +346,15 @@ exports.createScene = async function (serviceId, roomId, scene, callback) {
 
     if(scene._id)
       delete scene._id;
-    room.scenes.push(scene);
-    await saveScenes(room);
+
+    let prepareRoom = {scenes:[scene]};
+    await saveScenes(prepareRoom);
+
+    room.scenes.push(prepareRoom.scenes[0]);
+
     let saved = await room.save();
-    let savedScene = saved.scenes[saved.scenes.length-1];
+    let savedScene = saved.scenes[saved.scenes.length - 1];
+    
     callback(null, savedScene.toObject());
 
   }catch(err){
@@ -410,7 +419,6 @@ exports.createStaticParticipant = async function (serviceId, roomId, staticParti
     room.staticParticipants.push(prepareRoom.staticParticipants[0]);
 
     let saved = await room.save();
-
     let savedStaticParticipant = saved.staticParticipants[saved.staticParticipants.length - 1];
 
     callback(null, savedStaticParticipant.toObject());
@@ -445,8 +453,7 @@ exports.updateStaticParticipant = async function (serviceId, roomId, staticParti
 
     Object.assign(staticParticipant, prepareRoom.staticParticipants[0]);
 
-    let saved = await room.save();
-
+    await room.save();
     let savedStaticParticipant = prepareRoom.staticParticipants[0];
 
     callback(null, savedStaticParticipant);
@@ -586,7 +593,6 @@ exports.update = function (serviceId, roomId, updates, callback) {
       throw new Error('MediaOut conflicts with View Setting');
     }
 
-    await saveImage(updates);
     await saveScenes(updates);
 
     return await newRoom.save();

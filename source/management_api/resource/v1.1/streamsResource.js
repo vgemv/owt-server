@@ -67,6 +67,16 @@ exports.patch = function (req, res, next) {
     });
 };
 
+exports.stats = function (req, res, next) {
+    var stream = req.params.stream;
+    requestHandler.getStreamStatsInRoom(req.params.room, stream, function (result) {
+        if (result === 'error') {
+            return next(new e.CloudError('Operation failed'));
+        }
+        res.send(result);
+    });
+};
+
 exports.delete = function (req, res, next) {
     requestHandler.deleteStream(req.params.room, req.params.stream, function (result) {
         if (result === 'error') {

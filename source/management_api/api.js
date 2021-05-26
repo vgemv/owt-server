@@ -64,7 +64,7 @@ app.use(bodyParser.json({limit: '50mb'}));
 // for CORS
 app.use(function (req, res, next) {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS, DELETE, PATCH');
+  res.header('Access-Control-Allow-Methods', 'POST, PUT, GET, OPTIONS, DELETE, PATCH');
   res.header('Access-Control-Allow-Headers', 'origin, authorization, content-type');
   res.header('Strict-Transport-Security', 'max-age=1024000; includeSubDomain');
   res.header('X-Content-Type-Options', 'nosniff');

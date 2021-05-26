@@ -262,6 +262,29 @@ exports.deleteParticipant = function (roomId, participant, callback) {
     });
 };
 
+exports.getStreamStatsInRoom = function (roomId, streamId, callback) {
+  return validateId('Room ID', roomId)
+    .then((ok) => {
+      return getRoomController(roomId);
+    }).then((controller) => {
+      rpc.callRpc(controller, 'getStreamStats', [streamId], {callback: function (stats) {
+        log.debug('Got streams stats:', stats);
+        if (stats === 'timeout' || stats === 'error') {
+          callback('error');
+        } else {
+          callback(stats);
+        }
+      }});
+    }).catch((err) => {
+      log.info('getStreamStatsInRoom failed, reason:', err.message ? err.message : err);
+      if (err === 'Room is inactive') {
+        callback([]);
+      } else {
+        callback('error');
+      }
+    });
+};
+
 exports.getStreamsInRoom = function (roomId, callback) {
   return validateId('Room ID', roomId)
     .then((ok) => {

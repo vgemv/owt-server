@@ -112,6 +112,17 @@ class Connection extends EventEmitter {
       // mediaStream.metadata = options.metadata;
       // mediaStream.setMetadata(JSON.stringify(options.metadata));
     }
+    // setInterval(()=>{
+
+    //   mediaStream.getStats((e)=>{
+    //     log.error("getPeriodicStats:",e);
+    //   });
+    // },1000);
+
+
+    // mediaStream.getPeriodicStats((e)=>{
+    //   log.error("getPeriodicStats:",e);
+    // });
     mediaStream.onMediaStreamEvent((type, message) => {
       this._onMediaStreamEvent(type, message, mediaStream.id);
     });

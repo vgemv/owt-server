@@ -105,7 +105,8 @@ var ViewSchema = new Schema({
 var OverlaySchema = new Schema({
   name:  { type: String, require: true },
   imageData: { type: Schema.Types.ObjectId, ref: 'Image' }, // 默认图片
-  imageUri:  { type: String, require: true },
+  imageUri:  { type: String },
+  textData: { type: String },
   type:  { type: String, require: true }, // 文字类型标记为 text, 图片为 image
   z:  { type: Number, require: true },
   x:  { type: Number, require: true },

@@ -185,6 +185,10 @@ class WrtcStream extends EventEmitter {
     return null;
   }
 
+  getStats(callback) {
+    this.wrtc.getMediaStream(this.id).getStats(callback);
+  }
+
   onTrackControl(track, dir, action, onOk, onError) {
     if (['audio', 'video', 'av'].indexOf(track) < 0) {
       onError('Invalid track.');
