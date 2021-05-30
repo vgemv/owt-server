@@ -32,6 +32,11 @@
       'erizo/src/erizo/rtp/QualityManager.cpp',
       'erizo/src/erizo/rtp/RtpExtensionProcessor.cpp',
       'erizo/src/erizo/rtp/StatsHandler.cpp',
+      'erizo/src/erizo/rtp/RtcpNackGenerator.cpp',
+      'erizo/src/erizo/rtp/RtcpRrGenerator.cpp',
+      'erizo/src/erizo/rtp/RtcpFeedbackGenerationHandler.cpp',
+      
+      
       '<!@(find erizo/src/erizo/dtls -name "*.cpp")',
       '<!@(find erizo/src/erizo/dtls -name "*.c")',
       '<!@(find erizo/src/erizo/pipeline -name "*.cpp")',

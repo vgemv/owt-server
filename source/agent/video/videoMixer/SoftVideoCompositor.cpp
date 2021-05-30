@@ -12,6 +12,8 @@
 
 #include <boost/make_shared.hpp>
 
+#include "i420a_buffer.h"
+
 using namespace webrtc;
 using namespace owt_base;
 
@@ -140,12 +142,12 @@ bool AvatarManager::setAvatar(uint8_t index, boost::shared_ptr<ImageData> image)
 
     if(!image)return false;
 
-    rtc::scoped_refptr<webrtc::VideoFrameBuffer> frameBuffer;
+    rtc::scoped_refptr<webrtc::I420ABuffer> frameBuffer;
     if (ImageHelper::getVideoFrame(image->data, image->size, frameBuffer) != 0){
         ELOG_WARN_T("configured image is invalid!");
     }
     
-    boost::shared_ptr<webrtc::VideoFrame> frame(new webrtc::VideoFrame(frameBuffer, webrtc::kVideoRotation_0, 0));
+    boost::shared_ptr<webrtc::VideoFrame> frame(new webrtc::VideoFrame(rtc::scoped_refptr<webrtc::VideoFrameBuffer>(frameBuffer), webrtc::kVideoRotation_0, 0));
     m_indexedFrames[index] = frame;
 }
 
@@ -400,9 +402,11 @@ void SoftFrameGenerator::updateSceneSolution(SceneSolution& solution)
         m_configureChanged = true;
 
     if(solution.bgImage){
-        if (ImageHelper::getVideoFrame(solution.bgImage->data, solution.bgImage->size, m_bgFrame) != 0){
+        rtc::scoped_refptr<webrtc::I420ABuffer> buffer;
+        if (ImageHelper::getVideoFrame(solution.bgImage->data, solution.bgImage->size, buffer) != 0){
             ELOG_WARN_T("configured background image is invalid!");
         }
+        m_bgFrame = buffer;
     }
 }
 
@@ -712,7 +716,7 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
 
         for (std::vector<Overlay>::const_iterator ito = iOverlays.begin(); ito != iOverlays.end(); ++ito) {
 
-            rtc::scoped_refptr<webrtc::VideoFrameBuffer> inputBuffer = ito->imageBuffer;
+            rtc::scoped_refptr<webrtc::I420ABuffer> inputBuffer = ito->imageBuffer;
         
             uint32_t src_x = 0;
             uint32_t src_y= 0;
@@ -743,7 +747,11 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
             dst_width           &= ~1;
             dst_height          &= ~1;
 
-            int ret = libyuv::I420Scale(
+            bool alpha = true;
+            int ret;
+
+            if(!alpha){
+                ret = libyuv::I420Scale(
                     inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
                     inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),
                     inputBuffer->DataV() + (src_y * inputBuffer->StrideV() + src_x) / 2, inputBuffer->StrideV(),
@@ -753,6 +761,44 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
                     compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
                     dst_width, dst_height,
                     libyuv::kFilterBox);
+            }
+            else
+            {
+                rtc::scoped_refptr<webrtc::I420ABuffer> cache = webrtc::I420ABuffer::Create(dst_width, dst_height);
+
+                ret = libyuv::I420Scale(
+                    inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
+                    inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),
+                    inputBuffer->DataV() + (src_y * inputBuffer->StrideV() + src_x) / 2, inputBuffer->StrideV(),
+                    src_width, src_height,
+                    cache->MutableDataY() , cache->StrideY(),
+                    cache->MutableDataU() , cache->StrideU(),
+                    cache->MutableDataV() , cache->StrideV(),
+                    dst_width, dst_height,
+                    libyuv::kFilterBox);
+                if (ret != 0)
+                    ELOG_ERROR("I420Scale failed, ret %d", ret);
+                libyuv::ScalePlane(inputBuffer->DataA() + src_y * inputBuffer->StrideA() + src_x, inputBuffer->StrideY(),
+                    src_width,
+                    src_height,
+                    cache->MutableDataA() , cache->StrideA(),
+                    dst_width,
+                    dst_height,
+                    libyuv::kFilterBox);
+
+                ret = libyuv::I420Blend(
+                    cache->DataY() , cache->StrideY(),
+                    cache->DataU() , cache->StrideU(),
+                    cache->DataV() , cache->StrideV(),
+                    compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
+                    compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
+                    compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
+                    cache->DataA() , cache->StrideA(),
+                    compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
+                    compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
+                    compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
+                    dst_width, dst_height);
+            }
             if (ret != 0)
                 ELOG_ERROR("I420Scale failed, ret %d", ret);
         }
@@ -760,7 +806,7 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
 
     for (std::vector<Overlay>::const_iterator ito = overlays.begin(); ito != overlays.end(); ++ito) {
 
-        rtc::scoped_refptr<webrtc::VideoFrameBuffer> inputBuffer = ito->imageBuffer;
+        rtc::scoped_refptr<webrtc::I420ABuffer> inputBuffer = ito->imageBuffer;
         if(!inputBuffer)continue;
     
         uint32_t src_x = 0;
@@ -783,7 +829,11 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
             src_height = dst_height * rate;
         }
 
-        int ret = libyuv::I420Scale(
+        int ret;
+
+        bool alpha = true;
+        if(!alpha){
+            ret = libyuv::I420Scale(
                 inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
                 inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),
                 inputBuffer->DataV() + (src_y * inputBuffer->StrideV() + src_x) / 2, inputBuffer->StrideV(),
@@ -793,6 +843,42 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
                 compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
                 dst_width, dst_height,
                 libyuv::kFilterBox);
+        } else {
+            rtc::scoped_refptr<webrtc::I420ABuffer> cache = webrtc::I420ABuffer::Create(dst_width, dst_height);
+
+            ret = libyuv::I420Scale(
+                inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
+                inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),
+                inputBuffer->DataV() + (src_y * inputBuffer->StrideV() + src_x) / 2, inputBuffer->StrideV(),
+                src_width, src_height,
+                cache->MutableDataY() , cache->StrideY(),
+                cache->MutableDataU() , cache->StrideU(),
+                cache->MutableDataV() , cache->StrideV(),
+                dst_width, dst_height,
+                libyuv::kFilterBox);
+            if (ret != 0)
+                ELOG_ERROR("I420Scale failed, ret %d", ret);
+            libyuv::ScalePlane(inputBuffer->DataA() + src_y * inputBuffer->StrideA() + src_x, inputBuffer->StrideY(),
+                src_width,
+                src_height,
+                cache->MutableDataA() , cache->StrideA(),
+                dst_width,
+                dst_height,
+                libyuv::kFilterBox);
+
+            ret = libyuv::I420Blend(
+                cache->DataY() , cache->StrideY(),
+                cache->DataU() , cache->StrideU(),
+                cache->DataV() , cache->StrideV(),
+                compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
+                compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
+                compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
+                cache->DataA() , cache->StrideA(),
+                compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
+                compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
+                compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
+                dst_width, dst_height);
+        }
         if (ret != 0)
             ELOG_ERROR("I420Scale failed, ret %d", ret);
     }

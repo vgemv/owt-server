@@ -35,6 +35,12 @@ async function saveScenes(room) {
         let savedImage = await image.save();
         item.bgImageData = savedImage._id;
       }
+      if(item.preview && typeof(item.preview) == "string"){
+        let data = new Buffer(item.preview, "base64");
+        let image = new Room.ImageSchema({data});
+        let savedImage = await image.save();
+        item.preview = savedImage._id;
+      }
       item.overlays = await saveOverlaysToIds(item.overlays);
   }))
 }
@@ -48,6 +54,12 @@ async function saveStaticParticipants(room) {
         let image = new Room.ImageSchema({data});
         let savedImage = await image.save();
         item.avatarData = savedImage._id;
+      }
+      if(item.preview && typeof(item.preview) == "string"){
+        let data = new Buffer(item.preview, "base64");
+        let image = new Room.ImageSchema({data});
+        let savedImage = await image.save();
+        item.preview = savedImage._id;
       }
       if(item.overlays)
         item.overlays = await saveOverlaysToIds(item.overlays);
@@ -276,6 +288,7 @@ exports.deleteScene = async function (serviceId, roomId, sceneId, callback) {
     {
       // remove Image
       scene.preview && await Room.ImageSchema.deleteOne({_id: scene.preview}).exec();
+      scene.bgImageData && await Room.ImageSchema.deleteOne({_id: scene.bgImageData}).exec();
 
       // remove Overlay
       if(scene.overlays){
@@ -388,7 +401,7 @@ exports.listScene = function (serviceId, roomId, options, callback) {
       }
     }
 
-    Room.findById(roomId).lean().exec(function (err, room) {
+    Room.findById(roomId).populate("scenes.preview").lean().exec(function (err, room) {
         return callback(err, room.scenes.slice(start, end));
     });
   });

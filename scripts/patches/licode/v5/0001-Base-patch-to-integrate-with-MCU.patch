@@ -53,9 +53,9 @@ index 2482a4c..b793cb3 100644
 -#include "rtp/PliPacerHandler.h"
 -#include "rtp/RtpPaddingGeneratorHandler.h"
 +// #include "rtp/RtpRetransmissionHandler.h"
-+// #include "rtp/RtcpFeedbackGenerationHandler.h"
++ #include "rtp/RtcpFeedbackGenerationHandler.h"
 +// #include "rtp/RtpPaddingRemovalHandler.h"
-+// #include "rtp/StatsHandler.h"
++ #include "rtp/StatsHandler.h"
 +// #include "rtp/SRPacketHandler.h"
 +// #include "rtp/SenderBandwidthEstimationHandler.h"
 +// #include "rtp/LayerDetectorHandler.h"
@@ -96,18 +96,18 @@ index 2482a4c..b793cb3 100644
 +  // pipeline_->addFront(FecReceiverHandler());
 +  // pipeline_->addFront(LayerBitrateCalculationHandler());
 +  // pipeline_->addFront(QualityFilterHandler());
-+  // pipeline_->addFront(IncomingStatsHandler());
++   pipeline_->addFront(IncomingStatsHandler());
 +  // pipeline_->addFront(RtpTrackMuteHandler());
 +  // pipeline_->addFront(RtpSlideShowHandler());
 +  // pipeline_->addFront(RtpPaddingGeneratorHandler());
 +  // pipeline_->addFront(PliPacerHandler());
 +  // pipeline_->addFront(BandwidthEstimationHandler());
 +  // pipeline_->addFront(RtpPaddingRemovalHandler());
-+  // pipeline_->addFront(RtcpFeedbackGenerationHandler());
++   pipeline_->addFront(RtcpFeedbackGenerationHandler());
 +  // pipeline_->addFront(RtpRetransmissionHandler());
 +  // pipeline_->addFront(SRPacketHandler());
 +  // pipeline_->addFront(SenderBandwidthEstimationHandler());
-+  // pipeline_->addFront(OutgoingStatsHandler());
++   pipeline_->addFront(OutgoingStatsHandler());
  
    pipeline_->addFront(PacketWriter(this));
    pipeline_->finalize();

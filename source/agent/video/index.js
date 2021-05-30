@@ -808,7 +808,7 @@ function VMixer(rpcClient, clusterIP) {
                 //     inputManager.set(obj.stream, obj.id, obj.codec, obj.conn, obj.avatar):
                 //     inputManager.add(obj.stream, obj.codec, obj.conn, obj.avatar);
                 let input  = obj.id;
-                if (input >= 0) {
+                if (input >= inputManager.staticInput) {
                     // engine.addInput(input, obj.codec, obj.conn, obj.avatar);
                     if (specified_streams.indexOf(obj.stream) < 0) {
                     for (var i in layout) {

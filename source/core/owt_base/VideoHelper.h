@@ -9,6 +9,7 @@
 #include <map>
 #include <logger.h>
 #include "webrtc/api/video/video_frame_buffer.h"
+#include "i420a_buffer.h"
 
 namespace owt_base {
 
@@ -78,7 +79,7 @@ public:
 class ImageHelper {
     DECLARE_LOGGER();
 public:
-    static int getVideoFrame(const uint8_t* data, uint32_t size, rtc::scoped_refptr<webrtc::VideoFrameBuffer>& frame);
+    static int getVideoFrame(const uint8_t* data, uint32_t size, rtc::scoped_refptr<webrtc::I420ABuffer>& frame);
 };
 
 }

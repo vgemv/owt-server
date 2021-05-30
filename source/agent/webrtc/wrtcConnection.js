@@ -70,7 +70,7 @@ class WrtcStream extends EventEmitter {
             this._onMediaUpdate.bind(this), video.transportcc, wrtc.callBase);
         }
         this.videoFrameConstructor.bindTransport(wrtc.getMediaStream(id));
-        wrtc.setVideoSsrcList(id, [video.ssrc]);
+        wrtc.setVideoSsrcList(id, video.ssrc?[video.ssrc]:video.ssrcs);
       }
 
     } else {

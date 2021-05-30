@@ -9,6 +9,7 @@
 
 #include <list>
 #include <string>
+#include "i420a_buffer.h"
 
 namespace webrtc{
     class VideoFrame;
@@ -27,7 +28,7 @@ struct ImageData {
 
 struct Overlay {
     boost::shared_ptr<ImageData> image;
-    rtc::scoped_refptr<webrtc::VideoFrameBuffer> imageBuffer;
+    rtc::scoped_refptr<webrtc::I420ABuffer> imageBuffer;
     int z;
     double x;
     double y;

@@ -55,7 +55,7 @@ VideoMixer::VideoMixer(const VideoMixerConfig& config)
         bgColor = DEFAULT_VIDEO_BG_COLOR;
     }
 
-    rtc::scoped_refptr<webrtc::VideoFrameBuffer> bgFrame;
+    rtc::scoped_refptr<webrtc::I420ABuffer> bgFrame;
     if(config.bgImage){
         if (ImageHelper::getVideoFrame(config.bgImage->data, config.bgImage->size, bgFrame) != 0){
             ELOG_WARN("configured background image is invalid!");
@@ -72,7 +72,7 @@ VideoMixer::VideoMixer(const VideoMixerConfig& config)
 
     ELOG_INFO("Init maxInput(%u), rootSize(%u, %u), bgColor(%u, %u, %u)", m_maxInputCount, rootSize.width, rootSize.height, bgColor.y, bgColor.cb, bgColor.cr);
 
-    m_frameMixer.reset(new VideoFrameMixerImpl(m_maxInputCount, rootSize, bgColor, bgFrame, true, config.crop));
+    m_frameMixer.reset(new VideoFrameMixerImpl(m_maxInputCount, rootSize, bgColor, rtc::scoped_refptr<webrtc::VideoFrameBuffer>(bgFrame), true, config.crop));
 }
 
 VideoMixer::~VideoMixer()

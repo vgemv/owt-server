@@ -74,8 +74,8 @@ index 6eee9a8..5ff5156 100644
 +        // Set SSRC for mid/rsid
 +        forEachMediaStream([this, streamId, ssrc] (const std::shared_ptr<MediaStream> &media_stream) {
 +          if (media_stream->getId() == streamId) {
-+            media_stream->setVideoSourceSSRC(ssrc);
-+            media_stream->setVideoSourceSSRC(ssrc);
++            //media_stream->setVideoSourceSSRC(ssrc);
++            //media_stream->setVideoSourceSSRC(ssrc);
 +            mapping_ssrcs_[streamId] = ssrc;
 +          }
 +        });

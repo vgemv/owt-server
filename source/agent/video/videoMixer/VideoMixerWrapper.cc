@@ -397,11 +397,16 @@ void VideoMixer::updateSceneSolution(const v8::FunctionCallbackInfo<v8::Value>& 
         
         mcu::Overlay overlayItem;
         
-        overlayItem.z = overlay->Get(String::NewFromUtf8(isolate, "z"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Int32Value(Nan::GetCurrentContext()).ToChecked();
-        overlayItem.x = overlay->Get(String::NewFromUtf8(isolate, "x"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
-        overlayItem.y = overlay->Get(String::NewFromUtf8(isolate, "y"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
-        overlayItem.width = overlay->Get(String::NewFromUtf8(isolate, "width"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
-        overlayItem.height = overlay->Get(String::NewFromUtf8(isolate, "height"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
+        if(overlay->Has(String::NewFromUtf8(isolate, "z")))
+          overlayItem.z = overlay->Get(String::NewFromUtf8(isolate, "z"))->Int32Value(Nan::GetCurrentContext()).ToChecked();
+        if(overlay->Has(String::NewFromUtf8(isolate, "x")))
+          overlayItem.x = overlay->Get(String::NewFromUtf8(isolate, "x"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+        if(overlay->Has(String::NewFromUtf8(isolate, "y")))
+          overlayItem.y = overlay->Get(String::NewFromUtf8(isolate, "y"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+        if(overlay->Has(String::NewFromUtf8(isolate, "width")))
+          overlayItem.width = overlay->Get(String::NewFromUtf8(isolate, "width"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+        if(overlay->Has(String::NewFromUtf8(isolate, "height")))
+          overlayItem.height = overlay->Get(String::NewFromUtf8(isolate, "height"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
         Local<Value> image = overlay->Get(String::NewFromUtf8(isolate, "imageData"));
         if (image->IsObject()) {
           Local<Object> obj = image->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
@@ -450,26 +455,33 @@ void VideoMixer::updateInputOverlay(const v8::FunctionCallbackInfo<v8::Value>& a
         continue;
       Local<Object> overlayObj = overlayObjs->Get(i)->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
 
-      // image
-      Local<Object> imageObj = overlayObj->Get(String::NewFromUtf8(isolate, "imageData"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
-      char* buffer = (char*) node::Buffer::Data(imageObj);
-      const size_t size = node::Buffer::Length(imageObj);
+      if(overlayObj->Has(String::NewFromUtf8(isolate, "imageData"))){
+        // image
+        Local<Object> imageObj = overlayObj->Get(String::NewFromUtf8(isolate, "imageData"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
+        char* buffer = (char*) node::Buffer::Data(imageObj);
+        const size_t size = node::Buffer::Length(imageObj);
 
-      mcu::ImageData* imageData = new mcu::ImageData(size);
-      boost::shared_ptr<mcu::ImageData> image(imageData);
-      memcpy(imageData->data, buffer, size);
+        mcu::ImageData* imageData = new mcu::ImageData(size);
+        boost::shared_ptr<mcu::ImageData> image(imageData);
+        memcpy(imageData->data, buffer, size);
 
-      overlay.image = image;
+        overlay.image = image;
+      }
 
       // position
 
-      overlay.z = overlayObj->Get(String::NewFromUtf8(isolate, "z"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->Int32Value(Nan::GetCurrentContext()).ToChecked();
-      overlay.x = overlayObj->Get(String::NewFromUtf8(isolate, "x"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
-      overlay.y = overlayObj->Get(String::NewFromUtf8(isolate, "y"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
-      overlay.width = overlayObj->Get(String::NewFromUtf8(isolate, "width"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
-      overlay.height = overlayObj->Get(String::NewFromUtf8(isolate, "height"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->NumberValue(Nan::GetCurrentContext()).ToChecked();
+      if(overlayObj->Has(String::NewFromUtf8(isolate, "z")))
+        overlay.z = overlayObj->Get(String::NewFromUtf8(isolate, "z"))->Int32Value(Nan::GetCurrentContext()).ToChecked();
+      if(overlayObj->Has(String::NewFromUtf8(isolate, "x")))
+        overlay.x = overlayObj->Get(String::NewFromUtf8(isolate, "x"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+      if(overlayObj->Has(String::NewFromUtf8(isolate, "y")))
+        overlay.y = overlayObj->Get(String::NewFromUtf8(isolate, "y"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+      if(overlayObj->Has(String::NewFromUtf8(isolate, "width")))
+        overlay.width = overlayObj->Get(String::NewFromUtf8(isolate, "width"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+      if(overlayObj->Has(String::NewFromUtf8(isolate, "height")))
+        overlay.height = overlayObj->Get(String::NewFromUtf8(isolate, "height"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
       if(overlayObj->Has(String::NewFromUtf8(isolate, "disabled")))
-        overlay.disabled = overlayObj->Get(String::NewFromUtf8(isolate, "disabled"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked()->BooleanValue(Nan::GetCurrentContext()).ToChecked();
+        overlay.disabled = overlayObj->Get(String::NewFromUtf8(isolate, "disabled"))->BooleanValue(Nan::GetCurrentContext()).ToChecked();
 
       overlays.push_back(overlay);
     }

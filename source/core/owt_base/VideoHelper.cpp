@@ -6,7 +6,8 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-#include <webrtc/api/video/i420_buffer.h>
+// #include <webrtc/api/video/i420_buffer.h>
+#include "i420a_buffer.h"
 
 namespace owt_base {
 
@@ -48,7 +49,7 @@ static char *ff_err2str(int errRet)
     av_strerror(errRet, (char*)(&m_errbuff), 500);
     return m_errbuff;
 }
-int ImageHelper::getVideoFrame(const uint8_t* data, uint32_t size, rtc::scoped_refptr<webrtc::VideoFrameBuffer>& frame){
+int ImageHelper::getVideoFrame(const uint8_t* data, uint32_t size, rtc::scoped_refptr<webrtc::I420ABuffer>& frame){
 
     int ret = 0;
     AVIOContext* ioctx = NULL;
@@ -62,7 +63,7 @@ int ImageHelper::getVideoFrame(const uint8_t* data, uint32_t size, rtc::scoped_r
     void* avbuff = NULL;
     uint8_t* desData[3];
     int desLinesize[3];
-    rtc::scoped_refptr<webrtc::I420Buffer> buffer;
+    rtc::scoped_refptr<webrtc::I420ABuffer> buffer;
 
 
     av_init_packet(&pkt);
@@ -131,7 +132,7 @@ int ImageHelper::getVideoFrame(const uint8_t* data, uint32_t size, rtc::scoped_r
 
     // start resampling
 
-    frame = buffer = webrtc::I420Buffer::Create(decFrame->width, decFrame->height);
+    frame = buffer = webrtc::I420ABuffer::Create(decFrame->width, decFrame->height);
 
     desData[0] = 
         buffer->MutableDataY();
@@ -139,12 +140,16 @@ int ImageHelper::getVideoFrame(const uint8_t* data, uint32_t size, rtc::scoped_r
         buffer->MutableDataU();
     desData[2] = 
         buffer->MutableDataV();
+    desData[3] = 
+        buffer->MutableDataA();
     desLinesize[0] = 
-        decFrame->width;
+        buffer->StrideY();
     desLinesize[1] = 
-        decFrame->width/2;
+        buffer->StrideU();
     desLinesize[2] = 
-        decFrame->width/2;
+        buffer->StrideV();
+    desLinesize[3] = 
+        buffer->StrideA();
 
     swsCtx = sws_getContext(
         decFrame->width,
@@ -152,7 +157,7 @@ int ImageHelper::getVideoFrame(const uint8_t* data, uint32_t size, rtc::scoped_r
         (AVPixelFormat)decFrame->format,
         decFrame->width,
         decFrame->height,
-        AV_PIX_FMT_YUV420P,
+        AV_PIX_FMT_YUVA420P,
         SWS_BILINEAR, NULL, NULL, NULL
     );
     sws_scale(swsCtx, (const uint8_t * const *) decFrame->data,
