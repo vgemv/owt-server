@@ -125,7 +125,7 @@ protected:
     rtc::scoped_refptr<webrtc::VideoFrameBuffer> generateFrame();
     rtc::scoped_refptr<webrtc::VideoFrameBuffer> layout();
     void calculateTweenLayout();
-    static void layout_regions(SoftFrameGenerator *t, rtc::scoped_refptr<webrtc::I420Buffer> compositeBuffer, const LayoutSolution &regions);
+    static void layout_regions(SoftFrameGenerator *t, rtc::scoped_refptr<webrtc::I420Buffer> compositeBuffer, const LayoutSolution &regions, const std::vector<std::vector<Overlay>> &inputOverlays);
     static void layout_overlays(SoftFrameGenerator *t, rtc::scoped_refptr<webrtc::I420Buffer> compositeBuffer, const LayoutSolution &regions, const std::vector<std::vector<Overlay>> &inputOverlays, const std::vector<Overlay> &overlays);
     
     void reconfigureIfNeeded();
@@ -161,6 +161,7 @@ private:
     LayoutSolution              m_targetLayout;
     LayoutSolution              m_newLayout;
     bool                        m_configureChanged;
+    int                         m_tweenEffect;
     boost::shared_mutex         m_configMutex;
 
     boost::scoped_ptr<owt_base::I420BufferManager> m_bufferManager;

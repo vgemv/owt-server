@@ -233,6 +233,19 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
         removeInput(stream_id);
     };
 
+    that.setInputsActiveOnly = function (stream_ids, active, callback) {
+        log.debug('setUserActive, stream_ids:', stream_ids, 'active:', active);
+
+        Object.keys(inputs).forEach(stream_id=>{
+            let input = inputs[stream_id];
+            if( stream_ids.indexOf(stream_id) >= 0 )
+                engine.setInputActive(input.owner, stream_id, !!active);
+            else 
+                engine.setInputActive(input.owner, stream_id, !active);
+        });
+        callback('callback', 'ok');
+    };
+
     that.setInputActive = function (stream_id, active, callback) {
         log.debug('setInputActive, stream_id:', stream_id, 'active:', active);
         if (inputs[stream_id]) {

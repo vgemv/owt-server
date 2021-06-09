@@ -62,6 +62,16 @@ exports.add = function (req, res, next) {
     });
 };
 
+exports.stats = function (req, res, next) {
+  var sub_id = req.params.id;
+  requestHandler.getStreamingOutStats(req.params.room, sub_id, function (result) {
+      if (result === 'error') {
+          return next(new e.CloudError('Operation failed'));
+      }
+      res.send(result);
+  });
+};
+
 exports.patch = function (req, res, next) {
     var sub_id = req.params.id,
         cmds = req.body;

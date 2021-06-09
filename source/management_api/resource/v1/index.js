@@ -45,6 +45,7 @@ router.delete('/rooms/:room/streaming-ins/:stream', streamsResource.delete);
 
 //External streaming-out management
 router.get('/rooms/:room/streaming-outs', streamingOutsResource.getList);
+router.get('/rooms/:room/streaming-outs/:id/stats', streamingOutsResource.stats);
 router.post('/rooms/:room/streaming-outs', streamingOutsResource.add);//FIXME: Validation on body.type === 'streaming' is needed.
 router.patch('/rooms/:room/streaming-outs/:id', streamingOutsResource.patch);
 router.delete('/rooms/:room/streaming-outs/:id', streamingOutsResource.delete);

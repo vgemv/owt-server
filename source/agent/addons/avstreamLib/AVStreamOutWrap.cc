@@ -23,6 +23,7 @@ void AVStreamOutWrap::Init(Handle<Object> exports)
     // Prototype
     NODE_SET_PROTOTYPE_METHOD(tpl, "close", close);
     NODE_SET_PROTOTYPE_METHOD(tpl, "addEventListener", addEventListener);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "getStats", getStats);
 
     constructor.Reset(isolate, tpl->GetFunction());
     exports->Set(String::NewFromUtf8(isolate, "AVStreamOut"), tpl->GetFunction());
@@ -38,6 +39,7 @@ void AVStreamOutWrap::Init(Handle<Object> exports, Handle<Object> module)
     // Prototype
     NODE_SET_PROTOTYPE_METHOD(tpl, "close", close);
     NODE_SET_PROTOTYPE_METHOD(tpl, "addEventListener", addEventListener);
+    NODE_SET_PROTOTYPE_METHOD(tpl, "getStats", getStats);
 
     constructor.Reset(isolate, tpl->GetFunction());
     module->Set(String::NewFromUtf8(isolate, "exports"), tpl->GetFunction());
@@ -149,4 +151,21 @@ void AVStreamOutWrap::addEventListener(const FunctionCallbackInfo<Value>& args)
     if (!obj->me)
         return;
     Local<Object>::New(isolate, obj->m_store)->Set(args[0], args[1]);
+}
+
+void AVStreamOutWrap::getStats(const FunctionCallbackInfo<Value>& args)
+{
+    Isolate* isolate = Isolate::GetCurrent();
+    HandleScope scope(isolate);
+
+    AVStreamOutWrap* obj = ObjectWrap::Unwrap<AVStreamOutWrap>(args.Holder());
+    if (!obj->me)
+        return;
+        
+    Local<Object> ret = Object::New(isolate);
+    ret->Set(String::NewFromUtf8(isolate, "speed"), Number::New(isolate, obj->me->speed()));
+    ret->Set(String::NewFromUtf8(isolate, "fps"), Number::New(isolate, obj->me->fps()));
+    ret->Set(String::NewFromUtf8(isolate, "bitrate"), Number::New(isolate, obj->me->bitrate()));
+    
+    args.GetReturnValue().Set(ret);
 }

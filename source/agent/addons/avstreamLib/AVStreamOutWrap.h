@@ -27,6 +27,7 @@ class AVStreamOutWrap : public FrameDestination, public NodeEventRegistry {
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void close(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void addEventListener(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void getStats(const v8::FunctionCallbackInfo<v8::Value>& args);
 };
 
 #endif // AVStreamOutWrap_h

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 #include "AVStreamOut.h"
+#include <numeric>
 
 namespace owt_base {
 
@@ -492,9 +493,32 @@ bool AVStreamOut::writeFrame(AVStream *stream, boost::shared_ptr<MediaFrame> med
             );
 
     ret = av_interleaved_write_frame(m_context, &pkt);
-    if (ret < 0)
+    if (ret < 0) {
         ELOG_ERROR("Cannot write frame, %s", ff_err2str(ret));
+    }
+    else {
 
+#define SPEED_CALC_INTERVAL 30 * 5
+
+        if(isVideoFrame(mediaFrame->m_frame)){
+            m_passFrameTime.push_back(currentTimeMs());
+            m_passFramePts.push_back(mediaFrame->m_timeStamp);
+            m_passBytes.push_back(mediaFrame->m_frame.length);
+
+            if(m_passFramePts.size() > SPEED_CALC_INTERVAL){
+                m_passFrameTime.erase(m_passFrameTime.begin());
+                m_passFramePts.erase(m_passFramePts.begin());
+                m_passBytes.erase(m_passBytes.begin());
+            }
+
+            if(m_passFrameTime.size() > 1 && m_passFrameTime.back() - m_passFrameTime.front() > 0){
+                m_speed = (m_passFramePts.back() - m_passFramePts.front()) / (double)(m_passFrameTime.back() - m_passFrameTime.front());
+                m_fps = (m_passFrameTime.size()) / (double)(m_passFrameTime.back() - m_passFrameTime.front()) * 1000;
+                m_bitrate = (std::accumulate(m_passBytes.begin(), m_passBytes.end(), 0)) / (double)(m_passFrameTime.back() - m_passFrameTime.front()) * 1000;
+            }
+        }
+
+    }
     return ret >= 0 ? true : false;
 }
 

@@ -36,6 +36,7 @@ var RNumber = {
 var Region = {
   _id: false,
   id: { type: String, required: true },
+  z:{ type: Number },
   shape: { type: String, enum: ['rectangle'], default: 'rectangle' },
   area: {
     left: RNumber,
@@ -143,6 +144,7 @@ var SceneSchema = new Schema({
   preview: { type: Schema.Types.ObjectId, ref: 'Image' }, // 默认图片
   overlays: [ { type: Schema.Types.ObjectId, ref: 'Overlay' } ],
   layout: [{
+    input:{ type: Number },
     region: Region
   }]
 });
@@ -151,7 +153,7 @@ var OverlayTemplateSchema = new Schema({
   name: { type: String, require: true },
   editable: { type: Boolean },
   preview: { type: Schema.Types.ObjectId, ref: 'Image' },
-  overlays: [ { type: Schema.Types.ObjectId, ref: 'OverlayTemplate' } ]
+  overlays: [ { type: Schema.Types.ObjectId, ref: 'Overlay' } ]
 });
 
 var RoomSchema = new Schema({

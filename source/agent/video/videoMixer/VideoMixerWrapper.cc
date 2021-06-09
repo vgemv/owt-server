@@ -194,6 +194,9 @@ void VideoMixer::setAvatar(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
     auto r = me->setAvatar(inputIndex, image);
     args.GetReturnValue().Set(Boolean::New(isolate, r));
+  } else {
+    auto r = me->setAvatar(inputIndex, boost::shared_ptr<mcu::ImageData>());
+    args.GetReturnValue().Set(Boolean::New(isolate, r));
   }
 }
 
@@ -297,6 +300,10 @@ void VideoMixer::updateLayoutSolution(const v8::FunctionCallbackInfo<v8::Value>&
       mcu::Region region;
       region.id = *String::Utf8Value(isolate, regObj->Get(String::NewFromUtf8(isolate, "id")));
 
+      int zIndex = -1;
+      if(regObj->Has(String::NewFromUtf8(isolate, "z")))
+        zIndex = regObj->Get(String::NewFromUtf8(isolate, "z"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+
       Local<Value> area = regObj->Get(String::NewFromUtf8(isolate, "area"));
       if (area->IsObject()) {
         Local<Object> areaObj = area->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
@@ -313,7 +320,7 @@ void VideoMixer::updateLayoutSolution(const v8::FunctionCallbackInfo<v8::Value>&
         }
       }
 
-      mcu::InputRegion inputRegion = { input, region };
+      mcu::InputRegion inputRegion = { input, zIndex, region };
       solution.push_back(inputRegion);
     }
     me->updateLayoutSolution(solution);
@@ -358,11 +365,16 @@ void VideoMixer::updateSceneSolution(const v8::FunctionCallbackInfo<v8::Value>& 
           continue;
         Local<Object> jsInputRegion = jsLayoutSolution->Get(i)->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
         int input = jsInputRegion->Get(String::NewFromUtf8(isolate, "input"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+
         Local<Object> regObj = jsInputRegion->Get(String::NewFromUtf8(isolate, "region"))->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
 
         mcu::Region region;
         region.id = *String::Utf8Value(isolate, regObj->Get(String::NewFromUtf8(isolate, "id")));
 
+        int zIndex = -1;
+        if(regObj->Has(String::NewFromUtf8(isolate, "z")))
+          zIndex = regObj->Get(String::NewFromUtf8(isolate, "z"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+          
         Local<Value> area = regObj->Get(String::NewFromUtf8(isolate, "area"));
         if (area->IsObject()) {
           Local<Object> areaObj = area->ToObject(Nan::GetCurrentContext()).ToLocalChecked();
@@ -379,7 +391,7 @@ void VideoMixer::updateSceneSolution(const v8::FunctionCallbackInfo<v8::Value>& 
           }
         }
 
-        mcu::InputRegion inputRegion = { input, region };
+        mcu::InputRegion inputRegion = { input, zIndex, region };
         solution.layout->push_back(inputRegion);
       }
     }
@@ -407,6 +419,8 @@ void VideoMixer::updateSceneSolution(const v8::FunctionCallbackInfo<v8::Value>& 
           overlayItem.width = overlay->Get(String::NewFromUtf8(isolate, "width"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
         if(overlay->Has(String::NewFromUtf8(isolate, "height")))
           overlayItem.height = overlay->Get(String::NewFromUtf8(isolate, "height"))->NumberValue(Nan::GetCurrentContext()).ToChecked();
+        if(overlay->Has(String::NewFromUtf8(isolate, "disabled")))
+          overlayItem.disabled = overlay->Get(String::NewFromUtf8(isolate, "disabled"))->BooleanValue(Nan::GetCurrentContext()).ToChecked();
         Local<Value> image = overlay->Get(String::NewFromUtf8(isolate, "imageData"));
         if (image->IsObject()) {
           Local<Object> obj = image->ToObject(Nan::GetCurrentContext()).ToLocalChecked();

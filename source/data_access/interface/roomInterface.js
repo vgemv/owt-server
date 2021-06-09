@@ -401,7 +401,10 @@ exports.listScene = function (serviceId, roomId, options, callback) {
       }
     }
 
-    Room.findById(roomId).populate("scenes.preview").lean().exec(function (err, room) {
+    Room.findById(roomId)
+    .populate("scenes.preview")
+    .populate("scenes.bgImageData")
+    .lean().exec(function (err, room) {
         return callback(err, room.scenes.slice(start, end));
     });
   });
@@ -570,7 +573,9 @@ exports.listStaticParticipant = async function (serviceId, roomId, callback) {
 
     if (!match) throw new Error("Room not found");
 
-    let room = await Room.findById(roomId).populate("staticParticipants.preview").exec();
+    let room = await Room.findById(roomId)
+      .populate("staticParticipants.avatarData")
+      .populate("staticParticipants.preview").exec();
 
     callback(null, room.staticParticipants.toObject());
 

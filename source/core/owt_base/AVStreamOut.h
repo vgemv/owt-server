@@ -179,6 +179,10 @@ public:
     AVStreamOut(const std::string& url, bool hasAudio, bool hasVideo, EventRegistry* handle, int timeout);
     virtual ~AVStreamOut();
 
+    double speed() { return m_speed; }
+    double fps() { return m_fps; }
+    uint64_t bitrate() { return m_bitrate; }
+
     // FrameDestination
     virtual void onFrame(const Frame&);
     virtual void onVideoSourceChanged(void) {deliverFeedbackMsg(FeedbackMsg{.type = VIDEO_FEEDBACK, .cmd = REQUEST_KEY_FRAME });}
@@ -256,6 +260,13 @@ private:
     char m_errbuff[500];
 
     boost::thread m_thread;
+
+    std::vector<int64_t> m_passFramePts;
+    std::vector<int64_t> m_passFrameTime;
+    std::vector<uint64_t> m_passBytes;
+    double m_speed;
+    uint64_t m_bitrate;
+    double m_fps;
 };
 
 } /* namespace owt_base */

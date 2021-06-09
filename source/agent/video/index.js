@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 'use strict';
-
+const BlackPNG1px = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQYV2NgYGD4DwABBAEAcCBlCwAAAABJRU5ErkJggg==";
 var MediaFrameMulticaster = require('../mediaFrameMulticaster/build/Release/mediaFrameMulticaster');
 
 var logger = require('../logger').logger;
@@ -64,7 +64,30 @@ class InputManager {
       constructor(maxInput);
     }
 
-    setStaticInput(num) {
+    setStaticInput(num, removeInputIds) {
+        removeInputIds = removeInputIds || [];
+        let keepStaticSid = Object.keys(this.inputs).filter(i=>{
+            let inputId = this.inputs[i].id;
+            return inputId < this.staticInput && removeInputIds.indexOf(inputId) < 0;
+        }).sort((a,b)=>{
+            return this.inputs[a].id - this.inputs[b].id;
+        });
+
+        // remove useless static input
+        Object.keys(this.inputs).filter(i=>{
+            let inputId = this.inputs[i].id;
+            return removeInputIds.indexOf(inputId) >= 0;
+        }).forEach(i=>{
+            this.remove(i);
+        })
+
+        // reorder the static input id
+        keepStaticSid.forEach((i,idx)=>{
+            let input = this.get(i);
+            this.remove(i);
+            this.set(i, idx, input.codec, input.conn, input.avatar);
+        })
+
         this.staticInput = num;
     }
 
@@ -203,6 +226,14 @@ class InputManager {
 
     getStreamList() {
         return Object.keys(this.inputs).concat(Object.keys(this.pendingInputs));
+    }
+
+    getStaticInputs() {
+        return Object.keys(this.inputs).filter(i=>{
+            return this.inputs[i].id < this.staticInput;
+        }).map(i=>{
+            return this.inputs[i]
+        })
     }
 
     // Get stream from input
@@ -404,6 +435,8 @@ function VMixer(rpcClient, clusterIP) {
             staticParticipants = videoConfig.staticParticipants.map(i => {
                 if(i.avatarData)
                     i.avatarData = new Buffer(i.avatarData.data || i.avatarData, "base64");
+                else
+                    i.avatarData = new Buffer(BlackPNG1px, "base64");
                 if(i.overlays){
                     i.overlays.forEach(i => {
                         if(i.imageData){
@@ -458,6 +491,8 @@ function VMixer(rpcClient, clusterIP) {
 
                 if(sceneSolution.overlays){
                     sceneSolution.overlays.forEach(o => {
+                        if(o.imageData && typeof(o.imageData) == "string")
+                            o.imageData = new Buffer(o.imageData, "base64");
                         if(o.imageData && o.imageData.data && typeof(o.imageData.data) == "string")
                             o.imageData = new Buffer(o.imageData.data, "base64");
                     })
@@ -773,95 +808,34 @@ function VMixer(rpcClient, clusterIP) {
         callback('callback', true);
     }
 
-    that.setScene = function (scene, callback) {
-        log.debug('setScene, scene:', JSON.stringify(scene));
-
-        if(scene.layout){
-            let layout = scene.layout;
-
-            var specified_streams = layout.map((obj) => {return obj.stream ? obj.stream : null;}).filter((st) => { return st;});
-            var current_streams = [];
-
-            inputManager.getStreamList().map((stream_id) => {
-                let input = inputManager.get(stream_id);
-                // if (input.id >= 0) {
-                //     engine.removeInput(input.id);
-                // }
-
-                input.stream = stream_id;
-
-                if (specified_streams.indexOf(stream_id) >= 0) {
-                    current_streams.unshift(input);
-                } else {
-                    current_streams.push(input);
-                }
-            });
-
-            inputManager.reset(layout.length);
-
-            layout.slice(0, inputManager.staticInput).forEach((o,idx) => {
-                o.input = idx;
-            });
-
-            current_streams.forEach((obj) => {
-                // let input = obj.id >= 0?
-                //     inputManager.set(obj.stream, obj.id, obj.codec, obj.conn, obj.avatar):
-                //     inputManager.add(obj.stream, obj.codec, obj.conn, obj.avatar);
-                let input  = obj.id;
-                if (input >= inputManager.staticInput) {
-                    // engine.addInput(input, obj.codec, obj.conn, obj.avatar);
-                    if (specified_streams.indexOf(obj.stream) < 0) {
-                    for (var i in layout) {
-                        if (!layout[i].stream && layout[i].input === undefined) {
-                            layout[i].stream = obj.stream;
-                            break;
-                        }
-                    }
-                    }
-                }
-            });
-
-            var inputLayout = layout.map((obj) => {
-                if (obj.stream) {
-                    return {input: inputManager.get(obj.stream).id, region: obj.region};
-                } else if(obj.input >= 0) {
-                    return {input: obj.input, region: obj.region};
-                } else {
-                    return {region: obj.region};
-                }
-            });
-            scene = {
-                ...scene,
-                layout:inputLayout
-            };
-        }
-
-        layoutProcessor.setScene(scene, function(sceneSolution) {
-            var layout;
-            if(sceneSolution.layout){
-                layout = formatLayoutSolution(sceneSolution.layout);
-            }
-            callback('callback', { ...sceneSolution, layout } );
-        }, function(err) {
-          callback('callback', 'error', 'layoutProcessor failed');
-        });
-    };
-
     that.dropStaticParticipant = function (id, callback) {
         log.debug(`dropStaticParticipant, id: ${id}`);
         let idx = staticParticipants.findIndex(i => i._id == id);
         if(idx >= 0){
             staticParticipants.splice(idx, 1);
-            inputManager.setStaticInput(staticParticipants.length);
+            that.setInputOverlay(idx, [], ()=>{});
+            engine.setAvatar(idx, null);
+
+            inputManager.getStaticInputs().forEach(i=>{
+                engine.removeInput(i.id);
+            })
+            inputManager.setStaticInput(staticParticipants.length, [idx]);
+            inputManager.getStaticInputs().forEach(i=>{
+                engine.addInput(i.id, i.codec, i.conn, i.avatar);
+            })
+
             layoutProcessor.setStaticInputNum(staticParticipants.length);
 
             // TODO: deal with overlays?
-            that.setInputOverlay(idx, [], ()=>{});
             staticParticipants.forEach((i, idx) => {
                 if(i.avatarData){
                     engine.setAvatar(idx, i.avatarData);
                 }
+                if(i.overlays)
+                    that.setInputOverlay(idx, i.overlays, ()=>{});
             })
+            engine.setAvatar(staticParticipants.length, null);
+
             callback('callback', true);
         } else {
             callback('callback', false);
@@ -874,10 +848,13 @@ function VMixer(rpcClient, clusterIP) {
         let found = staticParticipants[idx];
         if(idx == -1)idx = staticParticipants.length ;
 
-        if(updated.avatarData){
+        if(updated.avatarData)
             updated.avatarData = new Buffer(updated.avatarData.data || updated.avatarData, "base64");
-            engine.setAvatar(idx, updated.avatarData);
-        }
+        else if(updated.avatarData === null || !found)
+            updated.avatarData = new Buffer(BlackPNG1px, "base64");
+            
+        updated.avatarData && engine.setAvatar(idx, updated.avatarData);
+
         if(updated.overlays){
             updated.overlays.forEach(i => {
                 if(i.imageData){
@@ -902,54 +879,54 @@ function VMixer(rpcClient, clusterIP) {
     that.setLayout = function (layout, callback) {
         log.debug('setLayout, layout:', JSON.stringify(layout));
 
-        var specified_streams = layout.map((obj) => {return obj.stream ? obj.stream : null;}).filter((st) => { return st;});
-        var current_streams = [];
+        // ignored StreamId specifier.
 
-        inputManager.getStreamList().map((stream_id) => {
-            let input = inputManager.remove(stream_id);
-            if (input.id >= 0) {
-                engine.removeInput(input.id);
-            }
-
-            input.stream = stream_id;
-
-            if (specified_streams.indexOf(stream_id) >= 0) {
-              current_streams.unshift(input);
-            } else {
-              current_streams.push(input);
-            }
+        var current_streams = inputManager.getStreamList().map((stream_id) => {
+            return inputManager.get(stream_id);
         });
 
-        inputManager.reset(layout.length);
+        // set static
+        layout.forEach(i=>delete i.input);
+        layout.slice(0,inputManager.staticInput).forEach((i,idx)=>i.input=idx);
 
-        current_streams.forEach((obj) => {
-          let input = inputManager.add(obj.stream, obj.codec, obj.conn, obj.avatar);
-          if (input >= 0) {
-            engine.addInput(input, obj.codec, obj.conn, obj.avatar);
-            if (specified_streams.indexOf(obj.stream) < 0) {
-              for (var i in layout) {
-                if (!layout[i].stream) {
-                  layout[i].stream = obj.stream;
-                  break;
+        // set others
+        current_streams.filter(i=>i.id>=inputManager.staticInput)
+            .forEach((obj) => {
+                let found = layout.slice(inputManager.staticInput).find(i=>i.input===undefined);
+                if(found){
+                    found.input = obj.id;
                 }
-              }
-            }
-          }
-        });
+            });
 
-        var inputLayout = layout.map((obj) => {
-          if (obj.stream) {
-            return {input: inputManager.get(obj.stream).id, region: obj.region};
-          } else {
-            return {region: obj.region};
-          }
-        });
+        var inputLayout = layout.filter(i=>i.region.area.width.numerator&&i.region.area.height.numerator);
 
         layoutProcessor.setLayout(inputLayout, function(layoutSolution) {
           callback('callback', formatLayoutSolution(layoutSolution));
         }, function(err) {
           callback('callback', 'error', 'layoutProcessor failed');
         });
+
+        return inputLayout;
+    };
+
+    that.setScene = function (scene, callback) {
+        log.debug('setScene, scene:', JSON.stringify(scene));
+
+        let sceneSolution = {...scene};
+
+        sceneSolution.layout = that.setLayout(scene.layout, callback);
+
+        layoutProcessor.emit("sceneChange", sceneSolution);
+    };
+
+    that.getVisibleStreams = function (callback) {
+        let visibleRegion = layoutProcessor.layoutSolution.filter(i=>i.region.area.width&&i.region.area.height);
+
+        var stream_ids = visibleRegion.map((o) => {
+            return inputManager.getStreamFromInput(o.input);
+        });
+
+        callback('callback', stream_ids);
     };
 
     that.forceKeyFrame = function (stream_id) {

@@ -308,6 +308,31 @@ exports.getStreamsInRoom = function (roomId, callback) {
     });
 };
 
+exports.getStreamingOutStats = function (roomId, streamingOutId, callback) {
+  return validateId('Room ID', roomId)
+    .then((ok) => {
+      return getRoomController(roomId);
+    }).then((controller) => {
+      return controller;
+    }, (e) => {
+      if (e === 'Room is inactive') {
+        return scheduleRoomController(roomId);
+      } else {
+        return Promise.reject('Validation failed');
+      }
+    }).then((controller) => {
+      rpc.callRpc(controller, 'getStreamingOutStats', [streamingOutId], {callback: function (result) {
+        if (result === 'error' || result === 'timeout') {
+          callback('error');
+        } else {
+          callback(result);
+        }
+      }}, 90 * 1000);
+    }).catch((err) => {
+      callback('error');
+    });
+};
+
 exports.addStreamingIn = function (roomId, pubReq, callback) {
   return validateId('Room ID', roomId)
     .then((ok) => {

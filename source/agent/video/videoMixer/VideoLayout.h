@@ -64,6 +64,7 @@ struct Region {
 
 struct InputRegion {
     int input;
+    int zIndex;
     Region region;
 };
 

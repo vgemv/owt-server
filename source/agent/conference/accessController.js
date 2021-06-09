@@ -291,6 +291,22 @@ module.exports.create = function(spec, rpcReq, on_session_established, on_sessio
     return rpcReq.getMediaStats(session.locality.node, sessionId, track);
   };
 
+  that.getStreamingOutStats = function(sessionId) {
+    log.debug('getStreamingOutStats, sessionId:', sessionId);
+
+    if (!sessions[sessionId]) {
+      return Promise.reject('Session does NOT exist');
+    }
+
+    var session = sessions[sessionId]
+
+    if (session.options.type !== 'streaming') {
+      return Promise.reject('Session does NOT support getStats');
+    }
+
+    return rpcReq.getMediaStats(session.locality.node, sessionId);
+  };
+
   that.setMute = function(sessionId, track, muted) {
     log.debug('setMute, sessionId:', sessionId, 'muted:', muted);
 

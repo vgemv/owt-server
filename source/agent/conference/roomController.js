@@ -1439,6 +1439,37 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         }
     };
 
+    var updateAudioActives = async function(toView) {
+
+        var video_mixer = getSubMediaMixer(toView, 'video');
+        var audio_mixer = getSubMediaMixer(toView, 'audio');
+
+        if (video_mixer && audio_mixer) {
+            let visible_stream_ids = await new Promise((o,x)=>makeRPC(
+                rpcClient,
+                terminals[video_mixer].locality.node,
+                'getVisibleStreams',
+                [],
+                o,
+                x));
+
+            // find the same Participant's Audio stream from Video stream
+            visible_stream_ids = visible_stream_ids.filter(i=>i).map(i=>{
+                let owner = streams[i].owner.split("-pub-")[0];
+                return Object.keys(streams).map(s=>{
+                    return (streams[s].owner.indexOf(owner) == 0 && streams[s].audio)? s: null
+                }).filter(i=>i)[0];
+            }).filter(i=>i);
+                
+            await new Promise((o,x)=>makeRPC(
+                rpcClient,
+                terminals[audio_mixer].locality.node,
+                'setInputsActiveOnly',
+                [visible_stream_ids, true], o, x));
+        
+        }
+    }
+
     // External interfaces.
     that.destroy = function () {
         deinitialize();
@@ -1845,7 +1876,12 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         if (!streams[stream_id]) {
             return on_error('Invalid stream');
         }
-        mixStream(stream_id, toView, on_ok, on_error);
+        mixStream(stream_id, toView, async (data)=>{
+            updateAudioActives(toView).then(()=>{
+                on_ok(data);
+            }).catch(on_error);
+           
+        }, on_error);
     };
 
     that.unmix = function (stream_id, fromView, on_ok, on_error) {
@@ -1859,6 +1895,16 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         unmixStream(stream_id, fromView);
         on_ok();
     };
+
+    that.getParticipantFromInputId = function(inputId) {
+        let stream = Object.values(streams).filter(i=>{
+            return i.inputId == inputId
+        })[0];
+
+        if(!stream)return;
+
+        return terminals[stream.owner].owner;
+    }
 
     that.dropStaticParticipant = function (staticParticipantId, on_ok, on_error) {
         log.debug('dropStaticParticipant, staticParticipantId:', staticParticipantId);
@@ -1940,31 +1986,45 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 terminals[video_mixer].locality.node,
                 'setLayout',
                 [layout],
-                function (data) {
-                    on_ok(data);
-                    resetVAD(toView);
+                async function (data) {
+
+                    await updateAudioActives(toView).then(()=>{
+                        on_ok(data);
+                        resetVAD(toView);
+                    }).catch(on_error);
                 }, on_error);
         } else {
             on_error('Invalid mix view');
         }
     };
 
-    that.setScene = function (toView, scene, on_ok, on_error) {
+    that.setScene = async function (toView, scene, on_ok, on_error) {
         log.debug('setScene, toView:', toView, 'scene:', JSON.stringify(scene));
-        var video_mixer = getSubMediaMixer(toView, 'video');
-        if (video_mixer) {
-            makeRPC(
+
+        try{
+
+            var video_mixer = getSubMediaMixer(toView, 'video');
+
+            if(!video_mixer) throw 'Invalid mix view';
+
+            let data = await new Promise((o,x)=>makeRPC(
                 rpcClient,
                 terminals[video_mixer].locality.node,
                 'setScene',
                 [scene],
                 function (data) {
-                    on_ok(data);
+                    o(data);
                     resetVAD(toView);
-                }, on_error);
-        } else {
-            on_error('Invalid mix view');
+                }, x));
+            
+            await updateAudioActives(toView);
+
+            on_ok(data);
+
+        }catch(e){
+            on_error(e);
         }
+        
     };
 
     that.setPrimary = function (inputStreamId, view) {

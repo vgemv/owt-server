@@ -1538,6 +1538,11 @@ var Conference = function (rpcClient, selfRpcId) {
     return rtcController.getMediaStats(streamId, affectedTracks)
   };
 
+  const getStreamingOutStats = function(streamId) {
+
+    return accessController.getStreamingOutStats(streamId)
+  };
+
   const setStreamMute = function(streamId, track, muted) {
     if (streams[streamId].type === 'mixed') {
       return Promise.reject('Stream is Mixed');
@@ -1667,6 +1672,15 @@ var Conference = function (rpcClient, selfRpcId) {
       callback('callback', result);
     }, (err) => {
       log.info('getMediaStats failed', err);
+      callback('callback', 'error', err.message ? err.message : err);
+    });
+  };
+
+  that.getStreamingOutStats = (streamId, callback) => {
+    return getStreamingOutStats(streamId).then((result)=>{
+      callback('callback', result);
+    }, (err) => {
+      log.info('getStreamingOutStats failed', err);
       callback('callback', 'error', err.message ? err.message : err);
     });
   };
@@ -2102,6 +2116,12 @@ var Conference = function (rpcClient, selfRpcId) {
   that.dropStaticParticipant = function(id, callback) {
     log.debug('dropStaticParticipant', id);
 
+    let idx = room_config.staticParticipants.findIndex(i=>i._id == id);
+    
+    let participantId = roomController.getParticipantFromInputId(idx);
+
+    participantId && doDropParticipant(participantId);
+
     room_config.staticParticipants = room_config.staticParticipants.filter(i => i._id != id);
 
     roomController.dropStaticParticipant(id);
@@ -2216,8 +2236,7 @@ var Conference = function (rpcClient, selfRpcId) {
 
     if (left && top && width && height) {
       return {
-        id: region.id,
-        shape: region.shape,
+        ...region,
         area: {left: left, top: top, width: width, height: height}
       };
     } else {
@@ -2954,6 +2973,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     updateScene: conference.updateScene,
     dropScene: conference.dropScene,
     getStreamStats: conference.getStreamStats,
+    getStreamingOutStats: conference.getStreamingOutStats,
 
     //rpc from access nodes.
     onSessionProgress: conference.onSessionProgress,

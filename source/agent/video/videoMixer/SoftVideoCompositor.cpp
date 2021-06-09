@@ -140,7 +140,10 @@ bool AvatarManager::setAvatar(uint8_t index, const std::string &url)
 bool AvatarManager::setAvatar(uint8_t index, boost::shared_ptr<ImageData> image){
     boost::unique_lock<boost::shared_mutex> lock(m_mutex);
 
-    if(!image)return false;
+    if(!image){
+        m_indexedFrames[index].reset();
+        return false;
+    }
 
     rtc::scoped_refptr<webrtc::I420ABuffer> frameBuffer;
     if (ImageHelper::getVideoFrame(image->data, image->size, frameBuffer) != 0){
@@ -292,6 +295,7 @@ SoftFrameGenerator::SoftFrameGenerator(
     , m_bgFrame(bgFrame)
     , m_crop(crop)
     , m_configureChanged(false)
+    , m_tweenEffect(0)
     , m_parallelNum(0)
 {
     ELOG_DEBUG_T("Support fps max(%d), min(%d)", m_maxSupportedFps, m_minSupportedFps);
@@ -382,6 +386,7 @@ void SoftFrameGenerator::updateSceneSolution(SceneSolution& solution)
     if(solution.layout){
         m_newLayout         = *solution.layout;
         changed  = true;
+        m_tweenEffect = 1;
     }
 
     if(solution.overlays){
@@ -407,6 +412,8 @@ void SoftFrameGenerator::updateSceneSolution(SceneSolution& solution)
             ELOG_WARN_T("configured background image is invalid!");
         }
         m_bgFrame = buffer;
+    } else {
+        m_bgFrame = NULL;
     }
 }
 
@@ -553,6 +560,11 @@ void SoftFrameGenerator::calculateTweenLayout()
 
     LayoutSolution result;
 
+    if(!m_tweenEffect){
+        m_layout = m_targetLayout;
+        return;
+    }
+
     for (LayoutSolution::const_iterator it = m_targetLayout.begin(); it != m_targetLayout.end(); ++it) {
         int input = it->input;
         Region region = it->region;
@@ -576,6 +588,8 @@ void SoftFrameGenerator::calculateTweenLayout()
             continue;
         }
 
+        found->zIndex = it->zIndex;
+
         // ELOG_ERROR_T("tween1 inputid(%d), left(%u/%u), top(%u/%u), width(%u/%u), height(%u/%u) - target left(%u/%u), top(%u/%u), width(%u/%u), height(%u/%u)",
         //     input,
         //     found->region.area.rect.left.numerator, found->region.area.rect.left.denominator,
@@ -593,10 +607,20 @@ void SoftFrameGenerator::calculateTweenLayout()
         expandRational(found->region.area.rect.width, region.area.rect.width);
         expandRational(found->region.area.rect.height, region.area.rect.height);
 
-        found->region.area.rect.left.numerator += ((double)region.area.rect.left.numerator - found->region.area.rect.left.numerator) / SPEED;
-        found->region.area.rect.top.numerator += ((double)region.area.rect.top.numerator - found->region.area.rect.top.numerator) / SPEED;
-        found->region.area.rect.width.numerator += ((double)region.area.rect.width.numerator - found->region.area.rect.width.numerator) / SPEED;
-        found->region.area.rect.height.numerator += ((double)region.area.rect.height.numerator - found->region.area.rect.height.numerator) / SPEED;
+#define TWEEN_FUN(A,B) ((double)B - A) / SPEED
+
+#define TWEEN(A,B) {\
+    double span = TWEEN_FUN(A, B);\
+    if(abs(span) < 1)\
+        A = B;\
+    else\
+        A += span;\
+}
+
+        TWEEN(found->region.area.rect.left.numerator, region.area.rect.left.numerator)
+        TWEEN(found->region.area.rect.top.numerator, region.area.rect.top.numerator)
+        TWEEN(found->region.area.rect.width.numerator, region.area.rect.width.numerator)
+        TWEEN(found->region.area.rect.height.numerator, region.area.rect.height.numerator)
 
         result.push_back(*found);
         // ELOG_ERROR_T("tween inputid(%d), left(%u/%u), top(%u/%u), width(%u/%u), height(%u/%u) - target left(%u/%u), top(%u/%u), width(%u/%u), height(%u/%u)",
@@ -616,13 +640,16 @@ void SoftFrameGenerator::calculateTweenLayout()
     m_layout = result;
 }
 
-void SoftFrameGenerator::layout_regions(SoftFrameGenerator *t, rtc::scoped_refptr<webrtc::I420Buffer> compositeBuffer, const LayoutSolution &regions)
+void SoftFrameGenerator::layout_regions(SoftFrameGenerator *t, rtc::scoped_refptr<webrtc::I420Buffer> compositeBuffer, const LayoutSolution &regions, const std::vector<std::vector<Overlay>> &inputOverlays)
 {
     uint32_t composite_width = compositeBuffer->width();
     uint32_t composite_height = compositeBuffer->height();
 
     for (LayoutSolution::const_iterator it = regions.begin(); it != regions.end(); ++it) {
         if(it->input < 0)
+            continue;
+        
+        if(!region.area.rect.width.numerator || !region.area.rect.height.numerator)
             continue;
             
         boost::shared_ptr<webrtc::VideoFrame> inputFrame = t->m_owner->getInputFrame(it->input);
@@ -637,6 +664,24 @@ void SoftFrameGenerator::layout_regions(SoftFrameGenerator *t, rtc::scoped_refpt
         uint32_t dst_y      = (uint64_t)composite_height * region.area.rect.top.numerator / region.area.rect.top.denominator;
         uint32_t dst_width  = (uint64_t)composite_width * region.area.rect.width.numerator / region.area.rect.width.denominator;
         uint32_t dst_height = (uint64_t)composite_height * region.area.rect.height.numerator / region.area.rect.height.denominator;
+
+        libyuv::I420Rect(
+            compositeBuffer->MutableDataY(), compositeBuffer->StrideY(),
+            compositeBuffer->MutableDataU(), compositeBuffer->StrideU(),
+            compositeBuffer->MutableDataV(), compositeBuffer->StrideV(),
+            dst_x, dst_y, dst_width, dst_height,
+            0, 128, 128);
+
+        // 基于 16/9
+        double area_ratio = dst_width / (double)dst_height;
+        double dst_area_ratio = 16.0 / 9.0;
+        if(area_ratio > dst_area_ratio){
+            dst_x += (dst_width - dst_height * dst_area_ratio) / 2;
+            dst_width = dst_height * dst_area_ratio;
+        } else {
+            dst_y += (dst_height - dst_width / dst_area_ratio) / 2;
+            dst_height = dst_width / dst_area_ratio;
+        }
 
         if (dst_x + dst_width > composite_width)
             dst_width = composite_width - dst_x;
@@ -692,6 +737,123 @@ void SoftFrameGenerator::layout_regions(SoftFrameGenerator *t, rtc::scoped_refpt
                 libyuv::kFilterBox);
         if (ret != 0)
             ELOG_ERROR("I420Scale failed, ret %d", ret);
+
+        // input overlay
+        {
+            int inputId = it->input;
+
+            uint32_t area_x      = (uint64_t)composite_width * region.area.rect.left.numerator / region.area.rect.left.denominator;
+            uint32_t area_y      = (uint64_t)composite_height * region.area.rect.top.numerator / region.area.rect.top.denominator;
+            uint32_t area_width  = (uint64_t)composite_width * region.area.rect.width.numerator / region.area.rect.width.denominator;
+            uint32_t area_height = (uint64_t)composite_height * region.area.rect.height.numerator / region.area.rect.height.denominator;
+
+            // 基于 16/9
+            double area_ratio = area_width / (double)area_height;
+            double dst_area_ratio = 16.0 / 9.0;
+            if(area_ratio > dst_area_ratio){
+                area_x += (area_width - area_height * dst_area_ratio) / 2;
+                area_width = area_height * dst_area_ratio;
+            } else {
+                area_y += (area_height - area_width / dst_area_ratio) / 2;
+                area_height = area_width / dst_area_ratio;
+            }
+
+            std::vector<Overlay> iOverlays;
+            if(inputId < inputOverlays.size())
+                iOverlays = inputOverlays[inputId];
+
+            for (std::vector<Overlay>::const_iterator ito = iOverlays.begin(); ito != iOverlays.end(); ++ito) {
+
+                if(ito->disabled)continue;
+
+                rtc::scoped_refptr<webrtc::I420ABuffer> inputBuffer = ito->imageBuffer;
+                if(!inputBuffer)continue;
+            
+                uint32_t src_x = 0;
+                uint32_t src_y= 0;
+                uint32_t src_width = inputBuffer->width();
+                uint32_t src_height = inputBuffer->height();
+                uint32_t dst_x = ito->x * area_width + area_x;
+                uint32_t dst_y= ito->y * area_width + area_y;
+                uint32_t dst_width = ito->width * area_width;
+                uint32_t dst_height = ito->height * area_width;
+
+                if(dst_x + dst_width > area_width + area_x){
+                    double rate = src_width / (double)dst_width;
+                    dst_width = area_width + area_x - dst_x;
+                    src_width = dst_width * rate;
+                }
+                if(dst_y + dst_height > area_height + area_y){
+                    double rate = src_height / (double)dst_height;
+                    dst_height = area_height + area_y - dst_y;
+                    src_height = dst_height * rate;
+                }
+
+                src_x               &= ~1;
+                src_y               &= ~1;
+                src_width           &= ~1;
+                src_height          &= ~1;
+                dst_x               &= ~1;
+                dst_y               &= ~1;
+                dst_width           &= ~1;
+                dst_height          &= ~1;
+
+                bool alpha = true;
+                int ret;
+
+                if(!alpha){
+                    ret = libyuv::I420Scale(
+                        inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
+                        inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),
+                        inputBuffer->DataV() + (src_y * inputBuffer->StrideV() + src_x) / 2, inputBuffer->StrideV(),
+                        src_width, src_height,
+                        compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
+                        compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
+                        compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
+                        dst_width, dst_height,
+                        libyuv::kFilterBox);
+                }
+                else
+                {
+                    rtc::scoped_refptr<webrtc::I420ABuffer> cache = webrtc::I420ABuffer::Create(dst_width, dst_height);
+
+                    ret = libyuv::I420Scale(
+                        inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
+                        inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),
+                        inputBuffer->DataV() + (src_y * inputBuffer->StrideV() + src_x) / 2, inputBuffer->StrideV(),
+                        src_width, src_height,
+                        cache->MutableDataY() , cache->StrideY(),
+                        cache->MutableDataU() , cache->StrideU(),
+                        cache->MutableDataV() , cache->StrideV(),
+                        dst_width, dst_height,
+                        libyuv::kFilterBox);
+                    if (ret != 0)
+                        ELOG_ERROR("I420Scale failed, ret %d", ret);
+                    libyuv::ScalePlane(inputBuffer->DataA() + src_y * inputBuffer->StrideA() + src_x, inputBuffer->StrideY(),
+                        src_width,
+                        src_height,
+                        cache->MutableDataA() , cache->StrideA(),
+                        dst_width,
+                        dst_height,
+                        libyuv::kFilterBox);
+
+                    ret = libyuv::I420Blend(
+                        cache->DataY() , cache->StrideY(),
+                        cache->DataU() , cache->StrideU(),
+                        cache->DataV() , cache->StrideV(),
+                        compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
+                        compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
+                        compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
+                        cache->DataA() , cache->StrideA(),
+                        compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
+                        compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
+                        compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
+                        dst_width, dst_height);
+                }
+                if (ret != 0)
+                    ELOG_ERROR("I420Scale failed, ret %d", ret);
+            }
+        }
     }
 }
 
@@ -701,110 +863,9 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
     uint32_t composite_width = compositeBuffer->width();
     uint32_t composite_height = compositeBuffer->height();
 
-    for (LayoutSolution::const_iterator it = regions.begin(); it != regions.end(); ++it) {
-        int inputId = it->input;
-        
-        Region region = it->region;
-        uint32_t area_x      = (uint64_t)composite_width * region.area.rect.left.numerator / region.area.rect.left.denominator;
-        uint32_t area_y      = (uint64_t)composite_height * region.area.rect.top.numerator / region.area.rect.top.denominator;
-        uint32_t area_width  = (uint64_t)composite_width * region.area.rect.width.numerator / region.area.rect.width.denominator;
-        uint32_t area_height = (uint64_t)composite_height * region.area.rect.height.numerator / region.area.rect.height.denominator;
-
-        std::vector<Overlay> iOverlays;
-        if(inputId < inputOverlays.size())
-            iOverlays = inputOverlays[inputId];
-
-        for (std::vector<Overlay>::const_iterator ito = iOverlays.begin(); ito != iOverlays.end(); ++ito) {
-
-            rtc::scoped_refptr<webrtc::I420ABuffer> inputBuffer = ito->imageBuffer;
-        
-            uint32_t src_x = 0;
-            uint32_t src_y= 0;
-            uint32_t src_width = inputBuffer->width();
-            uint32_t src_height = inputBuffer->height();
-            uint32_t dst_x = ito->x * area_width + area_x;
-            uint32_t dst_y= ito->y * area_width + area_y;
-            uint32_t dst_width = ito->width * area_width;
-            uint32_t dst_height = ito->height * area_width;
-
-            if(dst_x + dst_width > composite_width){
-                double rate = src_width / (double)dst_width;
-                dst_width = composite_width - dst_x;
-                src_width = dst_width * rate;
-            }
-            if(dst_y + dst_height > composite_height){
-                double rate = src_height / (double)dst_height;
-                dst_height = composite_height - dst_y;
-                src_height = dst_height * rate;
-            }
-
-            src_x               &= ~1;
-            src_y               &= ~1;
-            src_width           &= ~1;
-            src_height          &= ~1;
-            dst_x               &= ~1;
-            dst_y               &= ~1;
-            dst_width           &= ~1;
-            dst_height          &= ~1;
-
-            bool alpha = true;
-            int ret;
-
-            if(!alpha){
-                ret = libyuv::I420Scale(
-                    inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
-                    inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),
-                    inputBuffer->DataV() + (src_y * inputBuffer->StrideV() + src_x) / 2, inputBuffer->StrideV(),
-                    src_width, src_height,
-                    compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
-                    compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
-                    compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
-                    dst_width, dst_height,
-                    libyuv::kFilterBox);
-            }
-            else
-            {
-                rtc::scoped_refptr<webrtc::I420ABuffer> cache = webrtc::I420ABuffer::Create(dst_width, dst_height);
-
-                ret = libyuv::I420Scale(
-                    inputBuffer->DataY() + src_y * inputBuffer->StrideY() + src_x, inputBuffer->StrideY(),
-                    inputBuffer->DataU() + (src_y * inputBuffer->StrideU() + src_x) / 2, inputBuffer->StrideU(),
-                    inputBuffer->DataV() + (src_y * inputBuffer->StrideV() + src_x) / 2, inputBuffer->StrideV(),
-                    src_width, src_height,
-                    cache->MutableDataY() , cache->StrideY(),
-                    cache->MutableDataU() , cache->StrideU(),
-                    cache->MutableDataV() , cache->StrideV(),
-                    dst_width, dst_height,
-                    libyuv::kFilterBox);
-                if (ret != 0)
-                    ELOG_ERROR("I420Scale failed, ret %d", ret);
-                libyuv::ScalePlane(inputBuffer->DataA() + src_y * inputBuffer->StrideA() + src_x, inputBuffer->StrideY(),
-                    src_width,
-                    src_height,
-                    cache->MutableDataA() , cache->StrideA(),
-                    dst_width,
-                    dst_height,
-                    libyuv::kFilterBox);
-
-                ret = libyuv::I420Blend(
-                    cache->DataY() , cache->StrideY(),
-                    cache->DataU() , cache->StrideU(),
-                    cache->DataV() , cache->StrideV(),
-                    compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
-                    compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
-                    compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
-                    cache->DataA() , cache->StrideA(),
-                    compositeBuffer->MutableDataY() + dst_y * compositeBuffer->StrideY() + dst_x, compositeBuffer->StrideY(),
-                    compositeBuffer->MutableDataU() + (dst_y * compositeBuffer->StrideU() + dst_x) / 2, compositeBuffer->StrideU(),
-                    compositeBuffer->MutableDataV() + (dst_y * compositeBuffer->StrideV() + dst_x) / 2, compositeBuffer->StrideV(),
-                    dst_width, dst_height);
-            }
-            if (ret != 0)
-                ELOG_ERROR("I420Scale failed, ret %d", ret);
-        }
-    }
-
     for (std::vector<Overlay>::const_iterator ito = overlays.begin(); ito != overlays.end(); ++ito) {
+
+        if(ito->disabled)continue;
 
         rtc::scoped_refptr<webrtc::I420ABuffer> inputBuffer = ito->imageBuffer;
         if(!inputBuffer)continue;
@@ -828,6 +889,15 @@ void SoftFrameGenerator::layout_overlays(SoftFrameGenerator *t, rtc::scoped_refp
             dst_height = composite_height - dst_y;
             src_height = dst_height * rate;
         }
+
+        src_x               &= ~1;
+        src_y               &= ~1;
+        src_width           &= ~1;
+        src_height          &= ~1;
+        dst_x               &= ~1;
+        dst_y               &= ~1;
+        dst_width           &= ~1;
+        dst_height          &= ~1;
 
         int ret;
 
@@ -920,6 +990,11 @@ rtc::scoped_refptr<webrtc::VideoFrameBuffer> SoftFrameGenerator::layout()
             cropped_y = ( bgBuffer->height() - bgBuffer->width() / compositeRatio ) / 2;
         } 
 
+        cropped_x               &= ~1;
+        cropped_y               &= ~1;
+        cropped_width           &= ~1;
+        cropped_height          &= ~1;
+
         libyuv::I420Scale(
                 bgBuffer->DataY() + cropped_y * bgBuffer->StrideY() + cropped_x, bgBuffer->StrideY(),
                 bgBuffer->DataU() + (cropped_y * bgBuffer->StrideU() + cropped_x) / 2, bgBuffer->StrideU(),
@@ -935,6 +1010,8 @@ rtc::scoped_refptr<webrtc::VideoFrameBuffer> SoftFrameGenerator::layout()
     calculateTweenLayout();
 
     bool isParallelFrameComposition = m_parallelNum > 1 && m_layout.size() > 4;
+
+    isParallelFrameComposition = false; // region may overlayed
 
     if (isParallelFrameComposition) {
         int nParallelRegions = (m_layout.size() + m_parallelNum - 1) / m_parallelNum;
@@ -955,7 +1032,8 @@ rtc::scoped_refptr<webrtc::VideoFrameBuffer> SoftFrameGenerator::layout()
                     boost::bind(SoftFrameGenerator::layout_regions,
                         this,
                         compositeBuffer,
-                        LayoutSolution(regions_begin, regions_end))
+                        LayoutSolution(regions_begin, regions_end),
+                        m_inputOverlays)
                     );
             m_srv->post(boost::bind(&boost::packaged_task<void>::operator(), task));
             tasks.push_back(task);
@@ -966,7 +1044,11 @@ rtc::scoped_refptr<webrtc::VideoFrameBuffer> SoftFrameGenerator::layout()
         for (auto& task : tasks)
             task->get_future().wait();
     } else {
-        layout_regions(this, compositeBuffer, m_layout);
+        LayoutSolution temp = m_layout;
+        temp.sort([](InputRegion& a,InputRegion& b){
+            return a.zIndex < b.zIndex;
+        });
+        layout_regions(this, compositeBuffer, temp, m_inputOverlays);
     }
     
     layout_overlays(this, compositeBuffer, m_layout, m_inputOverlays, m_overlays);

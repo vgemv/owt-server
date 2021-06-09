@@ -182,6 +182,14 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
         .then(onSuccess(callback), onError(callback));
     };
 
+    that.getMediaStats = function(connectionId, track, callback) {
+        let connection = connections.getConnection(connectionId);
+        if(connection){
+            return callback('callback', connection.connection.getStats());
+        } else {
+            return callback('callback', {type: 'failed', reason: 'Connection not exists:'+connectionId});
+        }
+    }
     that.unsubscribe = function (connectionId, callback) {
         log.debug('unsubscribe, connectionId:', connectionId);
         var conn = connections.getConnection(connectionId);
