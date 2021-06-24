@@ -125,6 +125,18 @@ exports.Scheduler = function(spec) {
         workers[worker] && (workers[worker].load = load);
     };
 
+    that.updateUsage = function (worker, load) {
+        workers[worker] && (workers[worker].usage = load);
+    };
+
+    that.updateTaskUsage = function (workerRpcID, taskRpcID, load) {
+        if(workers[workerRpcID]){
+            if(!workers[workerRpcID].tasks_usage)
+                workers[workerRpcID].tasks_usage = {};
+            workers[workerRpcID].tasks_usage[taskRpcID] = load;
+        } 
+    };
+
     that.pickUpTasks = function (worker, tasks) {
         if (workers[worker]) {
             tasks.forEach(function (task) { executeTask(worker, task); });

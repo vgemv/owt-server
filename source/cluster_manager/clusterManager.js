@@ -85,6 +85,18 @@ var ClusterManager = function (clusterName, selfId, spec) {
         data_synchronizer && data_synchronizer({type: 'worker_load', payload: {worker: worker, load: load}});
     };
 
+    var reportUsage = function (worker, load) {
+        log.debug('reportUsage, worker:', worker, 'load:', load);
+        workers[worker] && schedulers[workers[worker].purpose] && schedulers[workers[worker].purpose].updateUsage(worker, load);
+        data_synchronizer && data_synchronizer({type: 'worker_usage', payload: {worker: worker, load: load}});
+    };
+
+    var reportTaskUsage = function (workerRpcID, taskRpcID, load) {
+        log.debug('reportTasksUsage, workerRpcID:', workerRpcID,'taskRpcID:', taskRpcID, 'load:', load);
+        workers[workerRpcID] && schedulers[workers[workerRpcID].purpose] && schedulers[workers[workerRpcID].purpose].updateTaskUsage(workerRpcID, taskRpcID, load);
+        data_synchronizer && data_synchronizer({type: 'worker_task_usage', payload: {workerRpcID, taskRpcID, load}});
+    };
+
     var pickUpTasks = function (worker, tasks) {
         workers[worker] && schedulers[workers[worker].purpose] && schedulers[workers[worker].purpose].pickUpTasks(worker, tasks);
         data_synchronizer && data_synchronizer({type: 'worker_pickup', payload: {worker: worker, tasks: tasks}});
@@ -134,11 +146,12 @@ var ClusterManager = function (clusterName, selfId, spec) {
                        rpcID: worker,
                        state: worker_info.state,
                        load: worker_info.load,
+                       usage: worker_info.usage,
                        hostname: worker_info.info.hostname || '',
                        port: worker_info.info.port || 0,
                        keepAlive: workers[worker].alive_count});
             } else {
-                on_ok(info);
+                on_ok(worker_info);
             }
         } else {
             on_error('Worker [' + worker + '] does NOT exist.');
@@ -213,6 +226,12 @@ var ClusterManager = function (clusterName, selfId, spec) {
         case 'worker_load':
             reportLoad(data.payload.worker, data.payload.load);
             break;
+        case 'worker_usage':
+            reportUsage(data.payload.worker, data.payload.load);
+            break;
+        case 'worker_task_usage':
+            reportTaskUsage(data.payload.workerRpcID, data.payload.taskRpcID, data.payload.load);
+            break;
         case 'worker_pickup':
             pickUpTasks(data.payload.worker, data.payload.tasks);
             break;
@@ -265,6 +284,12 @@ var ClusterManager = function (clusterName, selfId, spec) {
         reportLoad: function (worker, load) {
             reportLoad(worker, load);
         },
+        reportUsage: function (worker, load) {
+            reportUsage(worker, load);
+        },
+        reportTaskUsage: function (workerRpcID, taskRpcID, load) {
+            reportTaskUsage(workerRpcID, taskRpcID, load);
+        },
         pickUpTasks: function (worker, tasks) {
             pickUpTasks(worker, tasks);
         },
@@ -280,6 +305,18 @@ var ClusterManager = function (clusterName, selfId, spec) {
         },
         unschedule: function (worker, task) {
             unschedule(worker, task);
+        },
+        getAllWorkerAttr: async function (callback) {
+            try{
+                let allwokers = await new Promise(o=>getWorkers('all',o));
+                let allattrs = await Promise.all(allwokers.map(async (w)=>{
+                    return await new Promise((o,x)=>getWorkerAttr(w,o,x));
+                }));
+                
+                callback('callback', allattrs);
+            }catch(e){
+                callback('callback', 'error', e);
+            }
         },
         getWorkerAttr: function (worker, callback) {
             getWorkerAttr(worker, function (attr) {

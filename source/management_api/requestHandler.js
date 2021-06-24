@@ -617,4 +617,11 @@ exports.notifySipPortal = function (changeType, room, callback) {
     }});
 };
 
+exports.clusterAllNodes = function (callback) {
+    rpc.callRpc(cluster_name, 'getAllWorkerAttr', [], {callback: function (r) {
+      callback(r);
+    }});
+};
+
+
 

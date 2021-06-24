@@ -27,6 +27,10 @@ module.exports.load = () => {
       name: 'cpu'
     };
 
+    config.cluster.worker.usage = config.cluster.worker.usage || {};
+    config.cluster.worker.usage.period = config.cluster.report_usage_interval || 1000;
+    config.cluster.worker.usage.items = ["cpu","mem"];
+
     config.capacity = config.capacity || {};
 
     config.internal.protocol = config.internal.protocol || 'tcp';

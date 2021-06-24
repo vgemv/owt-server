@@ -8,6 +8,7 @@ var path = require('path');
 var WrtcConnection = require('./wrtcConnection');
 var Connections = require('./connections');
 var InternalConnectionFactory = require('./InternalConnectionFactory');
+var usageCollector = require("./loadCollector").UsageCollector;
 var logger = require('../logger').logger;
 
 // Logger
@@ -38,6 +39,14 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     var mappingPublicId = new Map();
     // Map { operationId => transportId }
     var mappingTransports = new Map();
+
+    var usage_collector = usageCollector({
+        period: global.config.cluster.worker.usage.period, 
+        items: global.config.cluster.worker.usage.items, 
+        onLoad: (usage)=>{
+            rpcClient.remoteCast(global.config.cluster.name, 'reportTaskUsage', [parentRpcId, selfRpcId, usage]);
+        }
+    });
     
     var notifyTransportStatus = function (controller, transportId, status) {
         rpcClient.remoteCast(controller, 'onTransportProgress', [transportId, status]);

@@ -9,6 +9,7 @@ var express = require('express')
 var router = express.Router()
 var sceneResource = require('./sceneResource');
 var staticParticipantResource = require('./staticParticipantResource');
+var cluster = require('./cluster');
 
 //Stream(including external streaming-in) management
 router.get('/rooms/:room/scene', sceneResource.list);
@@ -22,5 +23,7 @@ router.post('/rooms/:room/staticparticipant', staticParticipantResource.create);
 router.get('/rooms/:room/staticparticipant/:id', staticParticipantResource.get);
 router.put('/rooms/:room/staticparticipant/:id', staticParticipantResource.update);
 router.delete('/rooms/:room/staticparticipant/:id', staticParticipantResource.delete);
+
+router.get('/cluster/nodes', cluster.nodes);
 
 module.exports = router

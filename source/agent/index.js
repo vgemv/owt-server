@@ -108,7 +108,8 @@ var joinCluster = function (on_ok) {
         onLoss: loss,
         onRecovery: recovery,
         onOverload: overload,
-        loadCollection: config.cluster.worker.load
+        loadCollection: config.cluster.worker.load,
+        usageCollection: config.cluster.worker.usage,
     });
 };
 

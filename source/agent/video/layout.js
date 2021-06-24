@@ -296,6 +296,8 @@ LayoutProcessor.prototype.setLayout = function(layout, on_ok, on_error) {
       }
   });
 
+  this.layoutSolution = layout;
+  
   on_ok(this.layoutSolution);
   this.emit('layoutChange', this.layoutSolution);
 };

@@ -29,6 +29,10 @@ module.exports.load = () => {
       max_scale: config.cluster.network_max_scale || 1000
     };
 
+    config.cluster.worker.usage = config.cluster.worker.usage || {};
+    config.cluster.worker.usage.period = config.cluster.report_usage_interval || 1000;
+    config.cluster.worker.usage.items = ["cpu","mem","net"];
+
     config.capacity = config.capacity || {};
 
     config.internal.ip_address = config.internal.ip_address || '';

@@ -7,6 +7,7 @@
 var logger = require('./logger').logger;
 var makeRPC = require('./makeRPC').makeRPC;
 var loadCollector = require('./loadCollector').LoadCollector;
+var usageCollector = require('./loadCollector').UsageCollector;
 
 // Logger
 var log = logger.getLogger('ClusterWorker');
@@ -64,10 +65,22 @@ module.exports = function (spec) {
            on_overload();
         }
     };
+    var reportUsage = function (load) {
+        if (state === 'registered') {
+            rpcClient.remoteCast(
+                cluster_name,
+                'reportUsage',
+                [id, load]);
+        }
+    };
 
     var load_collector = loadCollector({period: spec.loadCollection.period,
                                         item: spec.loadCollection.item,
                                         onLoad: reportLoad});
+
+    var usage_collector = usageCollector({period: spec.usageCollection.period,
+                                          items: spec.usageCollection.items,
+                                          onLoad: reportUsage});
 
     var join = function (on_ok, on_failed) {
         makeRPC(
@@ -210,6 +223,7 @@ module.exports = function (spec) {
         }
 
         load_collector && load_collector.stop();
+        usage_collector && usage_collector.stop();
     };
 
     that.reportState = function (st) {

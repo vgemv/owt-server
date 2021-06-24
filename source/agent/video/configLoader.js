@@ -27,6 +27,10 @@ module.exports.load = () => {
       name: 'cpu'
     };
 
+    config.cluster.worker.usage = config.cluster.worker.usage || {};
+    config.cluster.worker.usage.period = config.cluster.report_usage_interval || 1000;
+    config.cluster.worker.usage.items = ["cpu","mem"];
+
     config.internal.ip_address = config.internal.ip_address || '';
     config.internal.network_interface = config.internal.network_interface || undefined;
     config.internal.minport = config.internal.minport || 0;

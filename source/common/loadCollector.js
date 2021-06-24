@@ -11,6 +11,188 @@ var log = logger.getLogger('LoadCollector');
 
 var child_process = require('child_process');
 var os = require('os');
+var process = require('process');
+
+var usageCollector = function (period, items, onLoad) {
+    let stats = {};
+    let cpu = items.indexOf("cpu")>=0 && new selfCpuCollector(period, (usage)=>{
+        stats.cpu = usage;
+    });
+    let mem = items.indexOf("mem")>=0 && new selfMemCollector(period, (usage, bytes)=>{
+        stats.mem = usage;
+        stats.mem_bytes = bytes;
+    });
+    let net = items.indexOf("net")>=0 && new selfNetworkCollector(period, (usage)=>{
+        stats.net = usage;
+    });
+
+    let interval = setInterval(()=>{
+        onLoad(stats);
+    }, period);
+
+    this.stop = function () {
+        log.debug("To stop usage collector.");
+        cpu && cpu.stop();
+        mem && mem.stop();
+        net && net.stop();
+        clearInterval(interval);
+    };
+};
+
+var selfCpuCollector = function (period, onLoad) {
+    var olds = os.cpus();
+    var oldCurrent = Object.values(process.cpuUsage()).reduce((a,b)=>a+b,0);
+    var begin = 0;
+    var end = olds.length - 1;
+    var interval = setInterval(function() {
+        var cpus = os.cpus();
+        var idle = 0;
+        var total = 0;
+        var current = Object.values(process.cpuUsage()).reduce((a,b)=>a+b,0);
+        for (let i = begin; i <= end; i++) {
+            for (let key in cpus[i].times) {
+                let diff = cpus[i].times[key] - olds[i].times[key];
+                if (key === 'idle') {
+                    idle += diff;
+                }
+                total += diff;
+            }
+        }
+        olds = cpus;
+        onLoad((current-oldCurrent)/total);
+        log.debug('self cpu usage:', (current-oldCurrent)/total);
+        oldCurrent = current;
+    }, period);
+
+    this.stop = function () {
+        log.debug("To stop cpu load collector.");
+        clearInterval(interval);
+    };
+};
+
+var selfMemCollector = function (period, onLoad) {
+    var interval = setInterval(function() {
+        let bytes = process.memoryUsage().rss;
+        var usage = bytes / os.totalmem();
+        onLoad(usage, bytes);
+        log.debug('mem usage:', usage);
+    }, period);
+
+    this.stop = function () {
+        log.debug("To mem cpu load collector.");
+        clearInterval(interval);
+    };
+};
+
+let hexToIpStr = function (hex) {
+    return parseInt(`0x${hex[6]}${hex[7]}`) + "." +
+        parseInt(`0x${hex[4]}${hex[5]}`) + "." +
+        parseInt(`0x${hex[2]}${hex[3]}`) + "." +
+        parseInt(`0x${hex[0]}${hex[1]}`);
+};
+
+let hexToPortStr = function (hex) {
+    return parseInt(`0x${hex}`)
+};
+
+var selfNetworkCollector = function (period, onLoad) {
+
+    // iftop -nNPt -f "port 30001"
+    // netstat -tupa | grep "23411/node"
+    // ls -l /proc/16291/fd/|grep socket|awk -F "->" '{print $2}'|awk -F "[\[\]]"  '{print $2}'
+    // cat /proc/16845/net/udp /proc/16845/net/tcp|grep socket|awk -F "->" '{print $2}'|awk -F "[\[\]]"  '{print $2}'
+
+    let iftopList = {};
+    let networkStats = {};
+
+    let interval = setInterval(()=>{
+        // 找到进程使用socket句柄，根据句柄找到ip和port，最后使用 iftop 得到网络使用量
+        let cmd = `cat /proc/${process.pid}/net/udp /proc/${process.pid}/net/tcp|awk '{print $2" "$10}'|grep -E $(ls -l /proc/${process.pid}/fd |grep socket|awk -F "->" '{print $2}'|awk -F "[\\[\\]]"  '{print $2}'|paste -sd "|")|awk '{print $1}'`
+        child_process.exec(cmd, function(err, stdout, stderr) {
+            /*
+            [ '020012AC:7530' ]
+
+            TO
+
+            [{
+                ip: "172.2.0.2",
+                port: 30000
+            }]
+
+            */
+            let ips = stdout.split("\n").map(i=>i.split(":")).map(i=>({
+                ip: hexToIpStr(i[0]),
+                port: hexToPortStr(i[1])
+            })).filter(i=>i.port>0);
+
+            // start iftop if not exist
+            ips.forEach(i=>{
+                let ipstr = i.ip + ":" + i.port;
+                if(!iftopList[ipstr]){
+                    let cmdPath = '/usr/sbin/iftop';
+                    let param = ["-oL", cmdPath, '-nNPBt', '-f', `host ${i.ip} and port ${i.port}`];
+                    let cmd = `iftop -nNPBt -f "host ${i.ip} and port ${i.port}"`;
+                    networkStats[ipstr] = {
+                        in_rate:0,
+                        out_rate:0
+                    }
+                    // 使用 exec 实际 nodejs 会打开一个 shell 来执行指令，child_process.kill 只会杀掉 shell，iftop还在执行。
+                    // 使用 execFile 不会打开 shell。
+                    // 使用 stdbuf 可以使用 -oL 参数控制 iftop 的输出缓冲为 line。（pipe状态下缓冲不为line，会导致 stdout 延迟收到)
+                    // iftopList[ipstr] = child_process.exec(cmd);
+                    iftopList[ipstr] = child_process.execFile("/usr/bin/stdbuf", param, (err)=>{
+                        delete iftopList[ipstr];
+                        log.debug("iftop exit: ",err);
+                    });
+                    iftopList[ipstr].stdout.on("data",(stdout)=>{
+                        let in_fmted = stdout.split("\n")
+                            .filter(i=>i.indexOf("=>")>=0)
+                            .map(i=>i.split(" ")// to array
+                                .filter(i=>i.indexOf("B")>=0)// delete not rate item
+                            )
+                            .filter(i=>i.length>1)// check
+                            .map(i=>i[1]);
+                        let out_fmted = stdout.split("\n")
+                            .filter(i=>i.indexOf("<=")>=0)
+                            .map(i=>i.split(" ")// to array
+                                .filter(i=>i.indexOf("B")>=0)// delete not rate item
+                            )
+                            .filter(i=>i.length>1)// check
+                            .map(i=>i[1]);
+
+                        if(in_fmted.length)
+                            networkStats[ipstr].in_rate = in_fmted[0];
+                        if(out_fmted.length)
+                            networkStats[ipstr].out_rate = out_fmted[0];
+                    });
+                }
+            });
+
+            // stop iftop which no longer exist
+            let ipstrList = ips.map(i=>i.ip+":"+i.port);
+            let needRemove = Object.keys(iftopList).filter(i=>ipstrList.indexOf(i)<0);
+            needRemove.forEach(i=>{
+                let needRemoveIfTop = iftopList[i];
+                needRemoveIfTop.kill();
+                delete iftopList[i];
+                delete networkStats[i];
+            })
+
+        });
+
+        onLoad(networkStats);
+
+    }, period);
+
+    this.stop = function () {
+        log.debug("To stop selfNetwork load collector.");
+        Object.keys(iftopList).forEach(i=>{
+            let item = iftopList[i];
+            item.kill();
+        })
+        clearInterval(interval);
+    };
+};
 
 var cpuCollector = function (period, onLoad) {
     var olds = os.cpus();
@@ -204,3 +386,22 @@ exports.LoadCollector = function (spec) {
 
     return that;
 };
+
+exports.UsageCollector = function (spec) {
+    var that = {};
+
+    var period = spec.period || 1000,
+        items = spec.items || [],
+        on_load = spec.onLoad || function (load) {log.debug('Got', items, 'load:', load);},
+        collector = undefined;
+
+    that.stop = function () {
+        log.info("To stop usage collector.");
+        collector && collector.stop();
+        collector = undefined;
+    };
+
+    collector = new usageCollector(period, items, on_load);
+
+    return that;
+}
