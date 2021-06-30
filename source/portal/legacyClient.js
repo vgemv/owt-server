@@ -185,7 +185,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
       })
       .catch(function(err) {
         const err_message = getErrorMessage(err);
-        log.info('portal.publish failed:', err_message);
+        log.info(`[${clientId}]: `, 'portal.publish failed:', err_message);
         safeCall(callback, 'error', err_message);
       });
     });
@@ -201,7 +201,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         published[streamId] && (delete published[streamId]);
       }).catch(function(err) {
         const err_message = getErrorMessage(err);
-        log.info('portal.unpublish failed:', err_message);
+        log.info(`[${clientId}]: `, 'portal.unpublish failed:', err_message);
         safeCall(callback, 'error', err_message);
       });
     });
@@ -225,7 +225,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
           safeCall(callback, 'success');
         }).catch((err) => {
           const err_message = getErrorMessage(err);
-          log.info('portal.mix failed:', err_message);
+          log.info(`[${clientId}]: `, 'portal.mix failed:', err_message);
           safeCall(callback, 'error', err_message);
         });
     });
@@ -249,7 +249,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
           safeCall(callback, 'success');
         }).catch((err) => {
           const err_message = getErrorMessage(err);
-          log.info('portal.unmix failed:', err_message);
+          log.info(`[${clientId}]: `, 'portal.unmix failed:', err_message);
           safeCall(callback, 'error', err_message);
         });
     });
@@ -292,16 +292,16 @@ var LegacyClient = function(clientId, sigConnection, portal) {
       return portal.subscribe(clientId, subscription_id, sub_desc
         ).then(function(result) {
           safeCall(callback, 'initializing', peer_id);
-          log.debug('portal.subscribe succeeded');
+          log.debug(`[${clientId}]: `, 'portal.subscribe succeeded');
         }).catch(function(err) {
           const err_message = getErrorMessage(err);
-          log.info('portal.subscribe failed:', err_message);
+          log.info(`[${clientId}]: `, 'portal.subscribe failed:', err_message);
           safeCall(callback, 'error', err_message);
         });
     });
 
     socket.on('unsubscribe', function(streamId, callback) {
-      log.debug('on:unsubscribe, streamId:', streamId);
+      log.debug(`[${clientId}]: `, 'on:unsubscribe, streamId:', streamId);
       if(!that.inRoom){
         return safeCall(callback, 'error', 'Illegal request');
       }
@@ -320,7 +320,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         safeCall(callback, 'success');
       }).catch(function(err) {
         const err_message = getErrorMessage(err);
-        log.info('portal.unsubscribe failed:', err_message);
+        log.info(`[${clientId}]: `, 'portal.unsubscribe failed:', err_message);
         safeCall(callback, 'error', err_message);
       });
     });
@@ -342,7 +342,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         return safeCall(callback, 'error', 'Illegal request');
       }
 
-      log.debug('Add serverUrl:', options.url, 'options:', options);
+      log.debug(`[${clientId}]: `, 'Add serverUrl:', options.url, 'options:', options);
 
       if (typeof options.url !== 'string' || options.url === '') {
         return safeCall(callback, 'error', 'Invalid RTSP/RTMP server url');
@@ -387,11 +387,11 @@ var LegacyClient = function(clientId, sigConnection, portal) {
 
       return portal.subscribe(clientId, subscription_id, sub_desc
         ).then((result) => {  
-          log.debug('portal.subscribe succeeded');
+          log.debug(`[${clientId}]: `, 'portal.subscribe succeeded');
           safeCall(callback, 'success', {url: sub_desc.connection.url});
         }).catch(function(err) {
           const err_message = getErrorMessage(err);
-          log.info('portal.subscribe failed:', err_message);
+          log.info(`[${clientId}]: `, 'portal.subscribe failed:', err_message);
           safeCall(callback, 'error', err_message);
         });
     });
@@ -401,7 +401,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         return safeCall(callback, 'error', 'Illegal request');
       }
 
-      log.debug('Update serverUrl:', options.url, 'options:', options);
+      log.debug(`[${clientId}]: `, 'Update serverUrl:', options.url, 'options:', options);
 
       if (typeof options.url !== 'string' || options.url === '') {
         return safeCall(callback, 'error', 'Invalid RTSP/RTMP server url');
@@ -443,7 +443,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
           safeCall(callback, 'success', {url: options.url});
         }).catch(function(err) {
           const err_message = getErrorMessage(err);
-          log.info('portal.subscriptionControl failed:', err_message);
+          log.info(`[${clientId}]: `, 'portal.subscriptionControl failed:', err_message);
           safeCall(callback, 'error', err_message);
         });
     });
@@ -453,7 +453,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         return safeCall(callback, 'error', 'Illegal request');
       }
 
-      log.debug('Remove serverUrl:', options.url, 'options:', options);
+      log.debug(`[${clientId}]: `, 'Remove serverUrl:', options.url, 'options:', options);
 
       if (typeof options.url !== 'string' || options.url === '') {
         return safeCall(callback, 'error', 'Invalid RTSP/RTMP server url');
@@ -473,11 +473,11 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         safeCall(callback, 'success', {url: options.url});
       }, function(err) {
         const err_message = getErrorMessage(err);
-        log.info('portal.unsubscribe failed:', err_message);
+        log.info(`[${clientId}]: `, 'portal.unsubscribe failed:', err_message);
         safeCall(callback, 'error', 'Invalid RTSP/RTMP server url');
       }).catch(function(err) {
         const err_message = getErrorMessage(err);
-        log.info('portal.unsubscribe failed:', err_message);
+        log.info(`[${clientId}]: `, 'portal.unsubscribe failed:', err_message);
         safeCall(callback, 'error', err_message);
       });
     });
@@ -534,7 +534,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
             safeCall(callback, 'success', {recorderId: options.recorderId, path: ""});
           }).catch(function(err) {
             const err_message = getErrorMessage(err);
-            log.info('portal.subscribe failed:', err_message);
+            log.info(`[${clientId}]: `, 'portal.subscribe failed:', err_message);
             safeCall(callback, 'error', err_message);
           });
       }
@@ -574,13 +574,13 @@ var LegacyClient = function(clientId, sigConnection, portal) {
 
       return portal.subscribe(clientId, subscription_id, sub_desc)
         .then(function(result) {
-          log.debug('portal.subscribe succeeded, result:', result);
+          log.debug(`[${clientId}]: `, 'portal.subscribe succeeded, result:', result);
           var container = ((options.audioCodec === 'aac' && (!options.videoCodec || (options.videoCodec === 'h264'))) ? 'mp4' : 'mkv');
           var recording_file = subscription_id + '.' + container;
           safeCall(callback, 'success', {recorderId: recorder_id, path: recording_file, host: 'unknown'});
         }).catch(function(err) {
           const err_message = getErrorMessage(err);
-          log.info('portal.subscribe failed:', err_message);
+          log.info(`[${clientId}]: `, 'portal.subscribe failed:', err_message);
           safeCall(callback, 'error', err_message);
         });
     });
@@ -608,7 +608,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         safeCall(callback, 'success', {recorderId: options.recorderId, host: 'unknown'});
       }).catch(function(err) {
         const err_message = getErrorMessage(err);
-        log.info('portal.unsubscribe failed:', err_message);
+        log.info(`[${clientId}]: `, 'portal.unsubscribe failed:', err_message);
         safeCall(callback, 'error', err_message);
       });
     });
@@ -628,7 +628,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         safeCall(callback, 'success', {region: result.region});
       }).catch(function(err) {
         const err_message = getErrorMessage(err);
-        log.info('portal.streamControl failed:', err_message);
+        log.info(`[${clientId}]: `, 'portal.streamControl failed:', err_message);
         safeCall(callback, 'error', err_message);
       });
     });
@@ -652,7 +652,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         safeCall(callback, 'success');
       }).catch(function(err) {
         const err_message = getErrorMessage(err);
-        log.info('portal.streamControl failed:', err_message);
+        log.info(`[${clientId}]: `, 'portal.streamControl failed:', err_message);
         safeCall(callback, 'error', err_message);
       });
     });
@@ -675,7 +675,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
           safeCall(callback, 'success');
         }).catch(function(err) {
           const err_message = getErrorMessage(err);
-          log.info('portal.streamControl failed:', err_message);
+          log.info(`[${clientId}]: `, 'portal.streamControl failed:', err_message);
           safeCall(callback, 'error', err_message);
         });
     });
@@ -698,7 +698,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
           safeCall(callback, 'success');
         }).catch(function(err) {
           const err_message = getErrorMessage(err);
-          log.info('portal.streamControl failed:', err_message);
+          log.info(`[${clientId}]: `, 'portal.streamControl failed:', err_message);
           safeCall(callback, 'error', err_message);
         });
     });
@@ -734,7 +734,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
               safeCall(callback, 'success');
             }).catch(function(err) {
               const err_message = getErrorMessage(err);
-              log.info('portal.text failed:', err_message);
+              log.info(`[${clientId}]: `, 'portal.text failed:', err_message);
               safeCall(callback, 'error', err_message);
             });
         case 'control':
@@ -761,7 +761,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
                 safeCall(callback, 'success');
               }).catch((err) => {
                 const err_message = getErrorMessage(err);
-                log.info('portal.streamControl failed:', err_message);
+                log.info(`[${clientId}]: `, 'portal.streamControl failed:', err_message);
                 safeCall(callback, 'error', err_message);
               });
           } else {
@@ -775,7 +775,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
                 safeCall(callback, 'success');
               }).catch(function(err) {
                 const err_message = getErrorMessage(err);
-                log.info('portal.subscriptionControl failed:', err_message);
+                log.info(`[${clientId}]: `, 'portal.subscriptionControl failed:', err_message);
                 safeCall(callback, 'error', err_message);
               });
           }
@@ -791,7 +791,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
     } else if (participantActivity.action === 'leave') {
       sendMsg('user_leave', {user: {id: participantActivity.data}});
     } else {
-      log.info('Unknown participant activity message:', participantActivity);
+      log.info(`[${clientId}]: `, 'Unknown participant activity message:', participantActivity);
     }
   };
 
@@ -848,7 +848,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
   };
 
   const notifyStreamInfo = (streamInfo) => {
-    log.debug('notifyStreamInfo, streamInfo:', streamInfo);
+    log.debug(`[${clientId}]: `, 'notifyStreamInfo, streamInfo:', streamInfo);
     if (streamInfo.status === 'add') {
       sendMsg('add_stream', convertStreamInfo(streamInfo.data));
     } else if (streamInfo.status === 'update') {
@@ -866,12 +866,12 @@ var LegacyClient = function(clientId, sigConnection, portal) {
     } else if (streamInfo.status === 'remove') {
       sendMsg('remove_stream', {id: streamInfo.id});
     } else {
-      log.info('Unknown stream info:', streamInfo);
+      log.info(`[${clientId}]: `, 'Unknown stream info:', streamInfo);
     }
   };
 
   const notifySessionProgress = (sessionProgress) => {
-    log.debug('notifySessionProgress, sessionProgress:', sessionProgress);
+    log.debug(`[${clientId}]: `, 'notifySessionProgress, sessionProgress:', sessionProgress);
     var id = sessionProgress.id;
     if (sessionProgress.status === 'soac') {
       if (published[id]) {
@@ -891,7 +891,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         if (published[id].mix) {
           portal.streamControl(clientId, id, {operation: 'mix', data: 'common'})
             .catch((err) => {
-              log.info('Mix stream failed, reason:', getErrorMessage(err));
+              log.info('Mix stream failed, reason:', getErrorMessage(`[${clientId}]: `, err));
             });
         }
       } else {
@@ -905,7 +905,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
       if (ref) {
         if (ref === id) {
           var recorder_id = id;
-          log.debug('recorder error, recorder_id:', ref);
+          log.debug(`[${clientId}]: `, 'recorder error, recorder_id:', ref);
           portal.unsubscribe(clientId, id);
           sendMsg('remove_recorder', {id: recorder_id});
         } else if (ref.indexOf('rtsp') !== -1 || ref.indexOf('rtmp') !== -1 || ref.indexOf('http') !== -1) {
@@ -919,7 +919,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
         sendMsg('connection_failed', {streamId: id});
       }
     } else {
-      log.info('Unknown session progress message:', sessionProgress);
+      log.info(`[${clientId}]: `, 'Unknown session progress message:', sessionProgress);
     }
   };
 
@@ -939,7 +939,7 @@ var LegacyClient = function(clientId, sigConnection, portal) {
   };
 
   that.notify = function(event, data) {
-    log.debug('notify, event:', event, 'data:', data);
+    log.debug(`[${clientId}]: `, 'notify, event:', event, 'data:', data);
     if (event === 'participant') {
       notifyParticipantActivity(data);
     } else if (event === 'stream') {

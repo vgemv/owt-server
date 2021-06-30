@@ -238,7 +238,8 @@ var Conference = function (rpcClient, selfRpcId) {
       rpcReq = require('./rpcRequest')(rpcChannel);
 
   var onSessionEstablished = (participantId, sessionId, direction, sessionInfo) => {
-    log.debug('onSessionEstablished, participantId:', participantId, 'sessionId:', sessionId, 'direction:', direction, 'sessionInfo:', JSON.stringify(sessionInfo));
+    log.info(`<${room_id}>[${participantId}]: `, 'onSessionEstablished, participantId:', participantId, 'sessionId:', sessionId, 'direction:', direction);
+    log.debug(`<${room_id}>[${participantId}]: `, 'onSessionEstablished, participantId:', participantId, 'sessionId:', sessionId, 'direction:', direction, 'sessionInfo:', JSON.stringify(`<${room_id}>: `, sessionInfo));
     if (direction === 'in') {
       return addStream(sessionId, sessionInfo.locality, sessionInfo.transport, sessionInfo.media, sessionInfo.data, sessionInfo.info
         ).then(() => {
@@ -247,9 +248,9 @@ var Conference = function (rpcClient, selfRpcId) {
           }
         }).catch((err) => {
           var err_msg = (err.message ? err.message : err);
-          log.info('Exception:', err_msg);
+          log.info(`<${room_id}>[${participantId}]: `, 'Exception:', err_msg);
           accessController && accessController.terminate(sessionId, 'in', err_msg).catch((e) => {
-            log.info('Exception:', e.message ? e.message : e);
+            log.info(`<${room_id}>[${participantId}]: `, 'Exception:', e.message ? e.message : e);
           });
         });
     } else if (direction === 'out') {
@@ -264,18 +265,18 @@ var Conference = function (rpcClient, selfRpcId) {
           }
         }).catch((err) => {
           var err_msg = (err.message ? err.message : err);
-          log.info('Exception:', err_msg);
+          log.info(`<${room_id}>[${participantId}]: `, 'Exception:', err_msg);
           accessController && accessController.terminate(sessionId, 'out', err_msg).catch((e) => {
-            log.info('Exception:', e.message ? e.message : e);
+            log.info(`<${room_id}>[${participantId}]: `, 'Exception:', e.message ? e.message : e);
           });
         });
     } else {
-      log.info('Unknown session direction:', direction);
+      log.info(`<${room_id}>[${participantId}]: `, 'Unknown session direction:', direction);
     }
   };
 
   var onSessionAborted = (participantId, sessionId, direction, reason) => {
-    log.debug('onSessionAborted, participantId:', participantId, 'sessionId:', sessionId, 'direction:', direction, 'reason:', reason);
+    log.info(`<${room_id}>[${participantId}]: `, 'onSessionAborted, participantId:', participantId, 'sessionId:', sessionId, 'direction:', direction, 'reason:', reason);
     if (reason !== 'Participant terminate') {
       const rtcSession = rtcController.getOperation(sessionId);
       if (rtcSession) {
@@ -291,21 +292,22 @@ var Conference = function (rpcClient, selfRpcId) {
       removeStream(sessionId)
         .catch((err) => {
           var err_msg = (err.message ? err.message : err);
-          log.info(err_msg);
+          log.info(`<${room_id}>[${participantId}]: `, err_msg);
         });
     } else if (direction === 'out') {
       removeSubscription(sessionId)
        .catch((err) => {
          var err_msg = (err.message ? err.message : err);
-         log.info(err_msg);
+         log.info(`<${room_id}>[${participantId}]: `, err_msg);
        });
     } else {
-      log.info('Unknown session direction:', direction);
+      log.info(`<${room_id}>[${participantId}]: `, 'Unknown session direction:', direction);
     }
   };
 
   var onLocalSessionSignaling = (participantId, transportId, signaling) => {
-    log.debug('onLocalSessionSignaling, participantId:', participantId, 'transportId:', transportId, 'signaling:', signaling);
+    log.info(`<${room_id}>[${participantId}]: `, 'onLocalSessionSignaling, participantId:', participantId, 'transportId:', transportId, 'type:', signaling.type);
+    log.debug(`<${room_id}>[${participantId}]: `, 'onLocalSessionSignaling, participantId:', participantId, 'transportId:', transportId, 'signaling:', signaling);
     if (participants[participantId]) {
       sendMsgTo(participantId, 'progress', {id: transportId, status: 'soac', data: signaling});
     }
@@ -338,7 +340,7 @@ var Conference = function (rpcClient, selfRpcId) {
       is_initializing = true;
       return dataAccess.room.config(roomId)
         .then(function(config) {
-            //log.debug('initializing room:', roomId, 'got config:', JSON.stringify(config));
+            //log.debug(`<${room_id}>: `, 'initializing room:', roomId, 'got config:', JSON.stringify(config));
             room_config = config;
             room_config.internalConnProtocol = global.config.internal.protocol;
             StreamConfigure(room_config);
@@ -355,7 +357,7 @@ var Conference = function (rpcClient, selfRpcId) {
                   selfRpcId: selfRpcId
                 },
                 function onOk(rmController) {
-                  log.debug('room controller init ok');
+                  log.info(`<${roomId}>: `, 'room controller init ok');
                   roomController = rmController;
                   room_id = roomId;
                   is_initializing = false;
@@ -364,7 +366,7 @@ var Conference = function (rpcClient, selfRpcId) {
                     const mixedStreamInfo = new MixedStream(streamId, view);
                     streams[streamId] = mixedStreamInfo;
                     streams[streamId].info.origin = origin;
-                    log.debug('Mixed stream info:', mixedStreamInfo);
+                    log.debug(`<${roomId}>: `, 'Mixed stream info:', mixedStreamInfo);
                     room_config.notifying.streamChange &&
                         sendMsg('room', 'all', 'stream',
                             {id: streamId, status: 'add', data: mixedStreamInfo.toPortalFormat()});
@@ -374,7 +376,7 @@ var Conference = function (rpcClient, selfRpcId) {
                     const selectedStreamInfo = new SelectedStream(streamId);
                     streams[streamId] = selectedStreamInfo;
                     streams[streamId].info.origin = origin;
-                    log.debug('Selected stream info:', selectedStreamInfo);
+                    log.debug(`<${roomId}>: `, 'Selected stream info:', selectedStreamInfo);
                     room_config.notifying.streamChange &&
                         sendMsg('room', 'all', 'stream',
                             {id: streamId, status: 'add', data: selectedStreamInfo.toPortalFormat()});
@@ -404,7 +406,7 @@ var Conference = function (rpcClient, selfRpcId) {
                     onLocalSessionSignaling(owner, transportId, message);
                   });
                   rtcController.on('session-established', (rtcInfo) => {
-                    log.debug('New RTC session:', rtcInfo.id);
+                    log.info(`<${roomId}>: `, 'New RTC session:', rtcInfo.id);
                     const sessionId = rtcInfo.id;
                     const media = { tracks: rtcInfo.tracks };
                     let direction = rtcInfo.direction;
@@ -420,7 +422,7 @@ var Conference = function (rpcClient, selfRpcId) {
                   });
 
                   rtcController.on('session-updated', (sessionId, data) => {
-                    log.warn('Unexpected event session-updated');
+                    log.warn(`<${roomId}>: `, 'Unexpected event session-updated');
                   });
 
                   rtcController.on('session-aborted', (sessionId, data) => {
@@ -460,13 +462,13 @@ var Conference = function (rpcClient, selfRpcId) {
                   resolve('ok');
                 },
                 function onError(reason) {
-                  log.error('roomController init failed.', reason);
+                  log.error(`<${roomId}>: `, 'roomController init failed.', reason);
                   is_initializing = false;
                   reject('roomController init failed. reason: ' + reason);
                 });
             });
         }).catch(function(err) {
-          log.error('Init room failed, reason:', err);
+          log.error(`<${roomId}>: `, 'Init room failed, reason:', err);
           is_initializing = false;
           setTimeout(() => {
             process.exit();
@@ -518,16 +520,16 @@ var Conference = function (rpcClient, selfRpcId) {
       if (participants[to]) {
         participants[to].notify(msg, data)
           .catch(function(reason) {
-            log.debug('sendMsg fail:', reason);
+            log.debug(`<${room_id}>: `, 'sendMsg fail:', reason);
           });
       } else {
-        log.warn('Can not send message to:', to);
+        log.warn(`<${room_id}>: `, 'Can not send message to:', to);
       }
     }
   };
 
   const sendMsg = function(from, to, msg, data) {
-    log.debug('sendMsg, from:', from, 'to:', to, 'msg:', msg, 'data:', data);
+    log.debug(`<${room_id}>: `, 'sendMsg, from:', from, 'to:', to, 'msg:', msg, 'data:', data);
     if (to === 'all' || to === 'others') {
       // Broadcast message to portal
       let excludes = (to === 'others') ? [from] : [];
@@ -637,7 +639,7 @@ var Conference = function (rpcClient, selfRpcId) {
       if (streams[sourceId]) {
         info.origin = streams[sourceId].info.origin;
       } else {
-        log.warn('Invalid analytics source when adding stream:', id);
+        log.warn(`<${room_id}>[${info.owner}]: `, 'Invalid analytics source when adding stream:', id);
       }
     }
 
@@ -649,7 +651,7 @@ var Conference = function (rpcClient, selfRpcId) {
 
     const isReadded = !!(streams[id] && !streams[id].isInConnecting);
     const pubArgs = fwdStream.toRoomCtrlPubArgs();
-    log.debug('PubArgs:', JSON.stringify(pubArgs));
+    log.debug(`<${room_id}>[${info.owner}]: `, 'PubArgs:', JSON.stringify(`<${room_id}>: `, pubArgs));
     if (info.type === 'webrtc' || info.type === 'quic') {
       const pubs = pubArgs.map(pubArg => new Promise((resolve, reject) => {
         roomController && roomController.publish(
@@ -663,9 +665,9 @@ var Conference = function (rpcClient, selfRpcId) {
             if (room_config.selectActiveAudio) {
               if (pubArg.media.audio) {
                 roomController.selectAudio(pubArg.id, () => {
-                  log.debug('Select active audio ok:', pubArg.id);
+                  log.debug(`<${room_id}>[${info.owner}]: `, 'Select active audio ok:', pubArg.id);
                 }, (err) => {
-                  log.info('Select active audio error:', pubArg.id, err);
+                  log.info(`<${room_id}>[${info.owner}]: `, 'Select active audio error:', pubArg.id, err);
                 });
               }
             }
@@ -781,7 +783,7 @@ var Conference = function (rpcClient, selfRpcId) {
           t1.parameters = mappedTrack.parameters;
         });
       } else {
-        log.warn('Add duplicate subscription:', id);
+        log.warn(`<${room_id}>[${info.owner}]: `, 'Add duplicate subscription:', id);
       }
     }
     for (const from of subscription.froms()) {
@@ -884,12 +886,12 @@ var Conference = function (rpcClient, selfRpcId) {
     return (!hasNonAdminParticipant && !hasPublication && !hasSubscription);
   };
 
-  const selfClean = () => {
+  const selfClean = (callOwner) => {
     selfCleanTimer && clearTimeout(selfCleanTimer);
     selfCleanTimer = setTimeout(function() {
       selfCleanTimer = null;
       if (roomIsIdle()) {
-        log.info('Empty room ', room_id, '. Deleting it');
+        log.info(`<${room_id}>[${callOwner}]: `, 'Empty room ', room_id, '. Deleting it');
         destroyRoom();
       }
     }, 30 * 1000);
@@ -903,13 +905,14 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.join = function(roomId, participantInfo, callback) {
-    log.debug('participant:', participantInfo, 'join room:', roomId);
+    log.info(`<${room_id}>[${participantInfo.id}]: `, 'join room:', roomId);
+    log.debug(`<${room_id}>[${participantInfo.id}]: `, 'participant:', participantInfo, 'join room:', roomId);
     var permission;
     return initRoom(roomId, participantInfo.origin)
       .then(function() {
-        log.debug('room_config.participantLimit:', room_config.participantLimit, 'current participants count:', Object.keys(participants).length);
+        log.debug(`<${room_id}>[${participantInfo.id}]: `, 'room_config.participantLimit:', room_config.participantLimit, 'current participants count:', Object.keys(`<${room_id}>: `, participants).length);
         if (room_config.participantLimit > 0 && (Object.keys(participants).length >= room_config.participantLimit + 1)) {
-          log.warn('Room is full');
+          log.warn(`<${room_id}>[${participantInfo.id}]: `, 'Room is full');
           callback('callback', 'error', 'Room is full');
           return Promise.reject('Room is full');
         }
@@ -958,13 +961,13 @@ var Conference = function (rpcClient, selfRpcId) {
           }
         });
       }, function(err) {
-        log.warn('Participant ' + participantInfo.id + ' join room ' + roomId + ' failed, err:', err);
+        log.warn(`<${room_id}>[${participantInfo.id}]: `, 'Participant ' + participantInfo.id + ' join room ' + roomId + ' failed, err:', err);
         callback('callback', 'error', 'Joining room failed');
       });
   };
 
   that.leave = function(participantId, callback) {
-    log.debug('leave, participantId:', participantId);
+    log.info(`<${room_id}>[${participantId}]: `, 'leave, participantId:', participantId);
     if (!accessController || !roomController) {
       return callback('callback', 'error', 'Controllers are not ready');
     }
@@ -981,7 +984,7 @@ var Conference = function (rpcClient, selfRpcId) {
         .then(() => removeParticipant(participantId))
         .then((result) => {
         callback('callback', 'ok');
-        selfClean(); }, (e) => { callback('callback', 'error', e.message ? e.message : e); });
+        selfClean(participantId); }, (e) => { callback('callback', 'error', e.message ? e.message : e); });
   };
 
   that.onSessionSignaling = function(sessionId, signaling, callback) {
@@ -1041,13 +1044,13 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.publish = function(participantId, streamId, pubInfo, callback) {
-    log.debug('publish, participantId:', participantId, 'streamId:', streamId, 'pubInfo:', JSON.stringify(pubInfo));
+    log.info(`<${room_id}>[${participantId}]: `, 'publish, participantId:', participantId, 'streamId:', streamId, 'pubInfo:', JSON.stringify(`<${room_id}>: `, pubInfo));
     if (!accessController || !roomController) {
       return callback('callback', 'error', 'Controllers are not ready');
     }
 
     if (participants[participantId] === undefined) {
-      log.info('Participant ' + participantId + 'has not joined');
+      log.info(`<${room_id}>[${participantId}]: `, 'Participant ' + participantId + 'has not joined');
       return callback('callback', 'error', 'Participant has not joined');
     }
 
@@ -1138,7 +1141,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.unpublish = function(participantId, streamId, callback) {
-    log.debug('unpublish, participantId:', participantId, 'streamId:', streamId);
+    log.info(`<${room_id}>[${participantId}]: `, 'unpublish, participantId:', participantId, 'streamId:', streamId);
     if (!accessController || !roomController) {
       return callback('callback', 'error', 'Controllers are not ready');
     }
@@ -1173,7 +1176,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   const isAudioFmtAvailable = (streamAudio, fmt) => {
-    //log.debug('streamAudio:', JSON.stringify(streamAudio), 'fmt:', fmt);
+    //log.debug(`<${room_id}>: `, 'streamAudio:', JSON.stringify(streamAudio), 'fmt:', fmt);
     if (isAudioFmtEqual(streamAudio.format, fmt)) {
       return true;
     }
@@ -1199,7 +1202,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   const isVideoFmtAvailable = (streamVideo, fmt) => {
-    //log.debug('streamVideo:', JSON.stringigy(streamVideo), 'fmt:', fmt);
+    //log.debug(`<${room_id}>: `, 'streamVideo:', JSON.stringigy(streamVideo), 'fmt:', fmt);
     if (isVideoFmtCompatible(streamVideo.format, fmt)) {
       return true;
     }
@@ -1295,13 +1298,13 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.subscribe = function(participantId, subscriptionId, subDesc, callback) {
-    log.debug('subscribe, participantId:', participantId, 'subscriptionId:', subscriptionId, 'subDesc:', JSON.stringify(subDesc));
+    log.info(`<${room_id}>[${participantId}]: `, 'subscribe, participantId:', participantId, 'subscriptionId:', subscriptionId, 'subDesc:', JSON.stringify(`<${room_id}>: `, subDesc));
     if (!accessController || !roomController) {
       return callback('callback', 'error', 'Controllers are not ready');
     }
 
     if (participants[participantId] === undefined) {
-      log.info('Participant ' + participantId + 'has not joined');
+      log.info(`<${room_id}>[${participantId}]: `, 'Participant ' + participantId + 'has not joined');
       return callback('callback', 'error', 'Participant has not joined');
     }
 
@@ -1450,7 +1453,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.unsubscribe = function(participantId, subscriptionId, callback) {
-    log.debug('unsubscribe, participantId:', participantId, 'subscriptionId:', subscriptionId);
+    log.info(`<${room_id}>[${participantId}]: `, 'unsubscribe, participantId:', participantId, 'subscriptionId:', subscriptionId);
     if (!accessController || !roomController) {
       return callback('callback', 'error', 'Controllers are not ready');
     }
@@ -1497,7 +1500,8 @@ var Conference = function (rpcClient, selfRpcId) {
       }
       return Promise.resolve('ok');
     }).catch(reason => {
-      log.info('roomController.mix failed, reason:', reason);
+      let owner = (streams[streamId]||{info:{}}).info.owner;
+      log.info(`<${room_id}>[${owner}]: `, 'roomController.mix failed, reason:', reason);
       throw reason;
     });
   };
@@ -1521,7 +1525,8 @@ var Conference = function (rpcClient, selfRpcId) {
       streams[streamId].info.inViews.splice(streams[streamId].info.inViews.indexOf(fromView), 1);
       return Promise.resolve('ok');
     }).catch(reason => {
-      log.info('roomController.unmix failed, reason:', reason);
+      let owner = (streams[streamId]||{info:{}}).info.owner;
+      log.info(`<${room_id}>[${owner}]: `, 'roomController.unmix failed, reason:', reason);
       throw reason;
     });
   };
@@ -1572,7 +1577,8 @@ var Conference = function (rpcClient, selfRpcId) {
         });
         return 'ok';
       }, function(reason) {
-        log.warn('rtcController set mute failed:', reason);
+        let owner = (streams[streamId]||{info:{}}).info.owner;
+        log.warn(`<${room_id}>[${owner}]: `, 'rtcController set mute failed:', reason);
         return Promise.reject(reason);
       });
   };
@@ -1585,7 +1591,8 @@ var Conference = function (rpcClient, selfRpcId) {
       roomController.getRegion(streamId, inView, function(region) {
         resolve({region: region});
       }, function(reason) {
-        log.info('roomController.getRegion failed, reason:', reason);
+        let owner = (streams[streamId]||{info:{}}).info.owner;
+        log.info(`<${room_id}>[${owner}]: `, 'roomController.getRegion failed, reason:', reason);
         reject(reason);
       });
     });
@@ -1599,7 +1606,8 @@ var Conference = function (rpcClient, selfRpcId) {
       roomController.setRegion(streamId, regionId, inView, function() {
         resolve('ok');
       }, function(reason) {
-        log.info('roomController.setRegion failed, reason:', reason);
+        let owner = (streams[streamId]||{info:{}}).info.owner;
+        log.info(`<${room_id}>[${owner}]: `, 'roomController.setRegion failed, reason:', reason);
         reject(reason);
       });
     });
@@ -1637,7 +1645,8 @@ var Conference = function (rpcClient, selfRpcId) {
           reject('stream early terminated');
         }
       }, function(reason) {
-        log.info('roomController.setLayout failed, reason:', reason);
+        let owner = (streams[streamId]||{info:{}}).info.owner;
+        log.info(`<${room_id}>[${owner}]: `, 'roomController.setLayout failed, reason:', reason);
         reject(reason);
       });
     });
@@ -1661,7 +1670,8 @@ var Conference = function (rpcClient, selfRpcId) {
           reject('stream early terminated');
         }
       }, function(reason) {
-        log.info('roomController.setScene failed, reason:', reason);
+        let owner = (streams[streamId]||{info:{}}).info.owner;
+        log.info(`<${room_id}>[${owner}]: `, 'roomController.setScene failed, reason:', reason);
         reject(reason);
       });
     });
@@ -1671,7 +1681,8 @@ var Conference = function (rpcClient, selfRpcId) {
     return getStreamStats(streamId).then((result)=>{
       callback('callback', result);
     }, (err) => {
-      log.info('getMediaStats failed', err);
+      let owner = (streams[streamId]||{info:{}}).info.owner;
+      log.info(`<${room_id}>[${owner}]: `, 'getMediaStats failed', err);
       callback('callback', 'error', err.message ? err.message : err);
     });
   };
@@ -1680,13 +1691,14 @@ var Conference = function (rpcClient, selfRpcId) {
     return getStreamingOutStats(streamId).then((result)=>{
       callback('callback', result);
     }, (err) => {
-      log.info('getStreamingOutStats failed', err);
+      let owner = (streams[streamId]||{info:{}}).info.owner;
+      log.info(`<${room_id}>[${owner}]: `, 'getStreamingOutStats failed', err);
       callback('callback', 'error', err.message ? err.message : err);
     });
   };
 
   that.streamControl = (participantId, streamId, command, callback) => {
-    log.debug('streamControl, participantId:', participantId, 'streamId:', streamId, 'command:', JSON.stringify(command));
+    log.info(`<${room_id}>[${participantId}]: `, 'streamControl, participantId:', participantId, 'streamId:', streamId, 'command:', JSON.stringify(`<${room_id}>: `, command));
 
     if (!accessController || !roomController) {
       return callback('callback', 'error', 'Controllers are not ready');
@@ -1697,7 +1709,7 @@ var Conference = function (rpcClient, selfRpcId) {
     }
 
     if (streams[streamId] === undefined) {
-      log.info('Stream ' + streamId + ' does not exist');
+      log.info(`<${room_id}>[${participantId}]: `, 'Stream ' + streamId + ' does not exist');
       return callback('callback', 'error', 'Stream does NOT exist');
     }
 
@@ -1734,7 +1746,7 @@ var Conference = function (rpcClient, selfRpcId) {
     return op.then((result) => {
         callback('callback', result);
       }, (err) => {
-        log.info('streamControl failed', err);
+        log.info(`<${room_id}>[${participantId}]: `, 'streamControl failed', err);
         callback('callback', 'error', err.message ? err.message : err);
       });
   };
@@ -1815,8 +1827,8 @@ var Conference = function (rpcClient, selfRpcId) {
       .then((result) => {
         return addSubscription(subscriptionId, oldSub.locality, newSubMedia, oldSub.data, oldSub.info);
       }).catch((err) => {
-        log.info('Update subscription failed:', err.message ? err.message : err);
-        log.info('And is recovering the previous subscription:', JSON.stringify(oldSub));
+        log.info(`<${room_id}>[${oldSub.info.owner}]: `, 'Update subscription failed:', err.message ? err.message : err);
+        log.info(`<${room_id}>[${oldSub.info.owner}]: `, 'And is recovering the previous subscription:', JSON.stringify(`<${room_id}>: `, oldSub));
         return addSubscription(subscriptionId, oldSub.locality, oldSub.media, oldSub.data, oldSub.info)
           .then(() => {
             return Promise.reject('Update subscription failed');
@@ -1849,7 +1861,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.subscriptionControl = (participantId, subscriptionId, command, callback) => {
-    log.debug('subscriptionControl, participantId:', participantId, 'subscriptionId:', subscriptionId, 'command:', JSON.stringify(command));
+    log.info(`<${room_id}>[${participantId}]: `, 'subscriptionControl, participantId:', participantId, 'subscriptionId:', subscriptionId, 'command:', JSON.stringify(`<${room_id}>: `, command));
 
     if (participants[participantId] === undefined) {
       return callback('callback', 'error', 'Participant has not joined');
@@ -1902,7 +1914,13 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.onSessionProgress = function(sessionId, direction, sessionStatus) {
-      log.debug('onSessionProgress, sessionId:', sessionId, 'direction:', direction, 'sessionStatus:', sessionStatus);
+      let owner;
+      if(direction == "in"){
+        owner = (streams[sessionId]||{info:{}}).info.owner;
+      } else if (direction == "out"){
+        owner = (subscriptions[sessionId]||{info:{}}).info.owner;
+      }
+      log.info(`<${room_id}>[${owner}]: `, 'onSessionProgress, sessionId:', sessionId, 'direction:', direction, 'sessionStatus:', sessionStatus);
       if (sessionStatus.data) {
           quicController && quicController.onSessionProgress(sessionId, sessionStatus);
       } else {
@@ -1911,12 +1929,13 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.onTransportProgress = function (transportId, status) {
-    log.debug('onTransportProgress, transportId:', transportId, 'status:', status);
+    let owner = (rtcController&&rtcController.getTransport(transportId)||{}).owner;
+    log.debug(`<${room_id}>[${owner}]: `, 'onTransportProgress, transportId:', transportId, 'status:', status);
     rtcController && rtcController.onTransportProgress(transportId, status);
   };
 
   that.onMediaUpdate = function (trackId, direction, mediaUpdate) {
-    log.debug('onMediaUpdate, trackId:', trackId, 'direction:', direction, 'mediaUpdate:', JSON.stringify(mediaUpdate));
+    log.debug(`<${room_id}>: `, 'onMediaUpdate, trackId:', trackId, 'direction:', direction, 'mediaUpdate:', JSON.stringify(mediaUpdate));
     if (direction === 'in') {
       if (rtcController && rtcController.getTrack(trackId)) {
         // Update from webrtc
@@ -1934,12 +1953,12 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.onTrackUpdate = function (sessionId, trackUpdate) {
-    log.debug('onTrackUpdate, sessionId:', sessionId, 'update:', JSON.stringify(trackUpdate));
+    log.debug(`<${room_id}>: `, 'onTrackUpdate, sessionId:', sessionId, 'update:', JSON.stringify(trackUpdate));
     rtcController && rtcController.onTrackUpdate(sessionId, trackUpdate);
   };
 
   that.onVideoLayoutChange = function(roomId, layout, view, callback) {
-    log.debug('onVideoLayoutChange, roomId:', roomId, 'layout:', layout, 'view:', view);
+    log.debug(`<${roomId}>: `, 'onVideoLayoutChange, roomId:', roomId, 'layout:', layout, 'view:', view);
     if (room_id === roomId && roomController) {
       var streamId = roomController.getMixedStream(view);
       if (streams[streamId]) {
@@ -1956,7 +1975,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.onAudioActiveness = function(roomId, activeInputStream, target, callback) {
-    log.debug('onAudioActiveness, roomId:', roomId, 'activeInputStream:', activeInputStream, 'target:', target);
+    log.debug(`<${roomId}>: `, 'onAudioActiveness, roomId:', roomId, 'activeInputStream:', activeInputStream, 'target:', target);
     if ((room_id === roomId) && roomController) {
       if (typeof target.view === 'string') {
         const view = target.view;
@@ -2002,14 +2021,14 @@ var Conference = function (rpcClient, selfRpcId) {
         callback('callback', 'ok');
       }
     } else {
-      log.info('onAudioActiveness, room does not exist');
+      log.info(`<${roomId}>: `, 'onAudioActiveness, room does not exist');
       callback('callback', 'error', 'room is not in service');
     }
   };
 
   //The following interfaces are reserved to serve management-api
   that.getParticipants = function(callback) {
-    log.debug('getParticipants, room_id:', room_id);
+    log.debug(`<${roomId}>: `, 'getParticipants, room_id:', room_id);
     var result = [];
     for (var participant_id in participants) {
       (participant_id !== 'admin') && result.push(participants[participant_id].getDetail());
@@ -2018,7 +2037,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.getPortal = function(participantId, callback) {
-      log.debug('Get participant ' + participantId);
+      log.debug(`<${room_id}>[${participantId}]: `, 'Get participant ' + participantId);
       if (!participants[participantId]) {
           callback('callback', 'error', 'Invalid participant ID.');
           return;
@@ -2028,7 +2047,7 @@ var Conference = function (rpcClient, selfRpcId) {
 
   //FIXME: Should handle updates other than authorities as well.
   that.controlParticipant = function(participantId, authorities, callback) {
-    log.debug('controlParticipant', participantId, 'authorities:', authorities);
+    log.debug(`<${room_id}>[${participantId}]: `, 'controlParticipant', participantId, 'authorities:', authorities);
     if (participants[participantId] === undefined) {
       callback('callback', 'error', 'Participant does NOT exist');
     }
@@ -2049,7 +2068,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   const doDropParticipant = (participantId) => {
-    log.debug('doDropParticipant', participantId);
+    log.info(`<${room_id}>[${participantId}]: `, 'doDropParticipant', participantId);
     if (participants[participantId] && participantId !== 'admin') {
       var deleted = participants[participantId].getInfo();
       return participants[participantId].drop()
@@ -2057,7 +2076,7 @@ var Conference = function (rpcClient, selfRpcId) {
           removeParticipant(participantId);
           return deleted;
         }).catch(function(reason) {
-          log.warn('doDropParticipant fail:', reason);
+          log.warn(`<${room_id}>[${participantId}]: `, 'doDropParticipant fail:', reason);
           return Promise.reject('Drop participant failed');
         });
     } else {
@@ -2066,7 +2085,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.dropScene = function(id, callback) {
-    log.debug('dropScene', id);
+    log.debug(`<${room_id}>: `, 'dropScene', id);
     
     room_config.scenes = room_config.scenes.filter(i => i._id != id);
 
@@ -2074,7 +2093,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.updateScene = function(id, updated, callback) {
-    log.debug('updateScene', id);
+    log.debug(`<${room_id}>: `, 'updateScene', id);
 
     updated._id = id;
     let found = room_config.scenes.find(i => i._id == id);
@@ -2087,7 +2106,7 @@ var Conference = function (rpcClient, selfRpcId) {
     callback('callback', true);
   };
   that.dropParticipant = function(participantId, callback) {
-    log.debug('dropParticipant', participantId);
+    log.debug(`<${room_id}>: `, 'dropParticipant', participantId);
     return doDropParticipant(participantId)
       .then((dropped) => {
         callback('callback', dropped);
@@ -2097,7 +2116,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.updateStaticParticipant = function(id, updated, callback) {
-    log.debug('updateStaticParticipant', id);
+    log.debug(`<${room_id}>: `, 'updateStaticParticipant', id);
 
     updated._id = id;
     let found = room_config.staticParticipants.find(i => i._id == id);
@@ -2114,7 +2133,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.dropStaticParticipant = function(id, callback) {
-    log.debug('dropStaticParticipant', id);
+    log.debug(`<${room_id}>: `, 'dropStaticParticipant', id);
 
     let idx = room_config.staticParticipants.findIndex(i=>i._id == id);
     
@@ -2130,7 +2149,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.getStreams = function(callback) {
-    log.debug('getStreams, room_id:', room_id);
+    log.debug(`<${room_id}>: `, 'getStreams, room_id:', room_id);
     var result = [];
     for (var stream_id in streams) {
       if (!streams[stream_id].isInConnecting) {
@@ -2141,7 +2160,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.getStreamInfo = function(streamId, callback) {
-    log.debug('getStreamInfo, room_id:', room_id, 'streamId:', streamId);
+    log.debug(`<${room_id}>: `, 'getStreamInfo, room_id:', room_id, 'streamId:', streamId);
     if (streams[streamId] && !streams[stream_id].isInConnecting) {
       callback('callback', streams[streamId]);
     } else {
@@ -2150,7 +2169,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.addStreamingIn = function(roomId, pubInfo, callback) {
-    log.debug('addStreamingIn, roomId:', roomId, 'pubInfo:', JSON.stringify(pubInfo));
+    log.info(`<${room_id}>: `, 'addStreamingIn, roomId:', roomId, 'pubInfo:', JSON.stringify(pubInfo));
 
     if (pubInfo.type === 'streaming') {
       var origin = { isp:'isp', region:'region'};
@@ -2245,7 +2264,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.controlStream = function(streamId, commands, callback) {
-    log.debug('controlStream', streamId, 'commands:', commands);
+    log.info(`<${room_id}>: `, 'controlStream', streamId, 'commands:', commands);
     if (streams[streamId] === undefined) {
       callback('callback', 'error', 'Stream does NOT exist');
     }
@@ -2468,13 +2487,14 @@ var Conference = function (rpcClient, selfRpcId) {
     }).then(() => {
       callback('callback', streams[streamId].toPortalFormat());
     }, (err) => {
-      log.warn('failed in controlStream, reason:', err.message ? err.message : err);
+      log.warn(`<${room_id}>: `, 'failed in controlStream, reason:', err.message ? err.message : err);
       callback('callback', 'error', err.message ? err.message : err);
     });
   };
 
   that.deleteStream = function(streamId, callback) {
-    log.debug('deleteStream, streamId:', streamId);
+    let owner = (streams[streamId]||{info:{}}).info.owner;
+    log.info(`<${room_id}>[${owner}]: `, 'deleteStream, streamId:', streamId);
     if (!accessController || !roomController) {
       return callback('callback', 'error', 'Controllers are not ready');
     }
@@ -2486,7 +2506,7 @@ var Conference = function (rpcClient, selfRpcId) {
     return doUnpublish(streamId)
       .then((result) => {
         callback('callback', result);
-        selfClean();
+        selfClean(owner);
       })
       .catch((e) => {
         callback('callback', 'error', e.message ? e.message : e);
@@ -2514,7 +2534,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.getSubscriptions = function(type, callback) {
-    log.debug('getSubscriptions, room_id:', room_id, 'type:', type);
+    log.debug(`<${room_id}>: `, 'getSubscriptions, room_id:', room_id, 'type:', type);
     var result = [];
     for (var sub_id in subscriptions) {
       if (subscriptions[sub_id].info.type === type && !subscriptions[sub_id].isInConnecting) {
@@ -2525,7 +2545,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.getSubscriptionInfo = function(subId, callback) {
-    log.debug('getSubscriptionInfo, room_id:', room_id, 'subId:', subId);
+    log.debug(`<${room_id}>: `, 'getSubscriptionInfo, room_id:', room_id, 'subId:', subId);
     if (subscriptions[subId] && !subscriptions[sub_id].isInConnecting) {
       callback('callback', subscriptionAbstract(subId));
     } else {
@@ -2534,7 +2554,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.addServerSideSubscription = function(roomId, subDesc, callback) {
-    log.debug('addServerSideSubscription, roomId:', roomId, 'subDesc:', JSON.stringify(subDesc));
+    log.debug(`<${roomId}>: `, 'addServerSideSubscription, roomId:', roomId, 'subDesc:', JSON.stringify(`<${room_id}>: `, subDesc));
 
     if (subDesc.type === 'streaming' || subDesc.type === 'recording' || subDesc.type === 'analytics') {
       var subscription_id = Math.round(Math.random() * 1000000000000000000) + '';
@@ -2755,7 +2775,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.controlSubscription = function(subId, commands, callback) {
-    log.debug('controlSubscription', subId, 'commands:', commands);
+    log.info(`<${room_id}>: `, 'controlSubscription', subId, 'commands:', commands);
     if (subscriptions[subId] === undefined) {
       callback('callback', 'error', 'Subscription does NOT exist');
     }
@@ -2773,7 +2793,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.deleteSubscription = function(subId, type, callback) {
-    log.debug('deleteSubscription, subId:', subId, type);
+    log.debug(`<${room_id}>: `, 'deleteSubscription, subId:', subId, type);
     if (!accessController || !roomController) {
       return callback('callback', 'error', 'Controllers are not ready');
     }
@@ -2816,7 +2836,7 @@ var Conference = function (rpcClient, selfRpcId) {
 
   that.getSipCalls = function(callback) {
     var result = [];
-    log.debug('getSipCalls: ' , participants );
+    log.debug(`<${room_id}>: `, 'getSipCalls: ' , participants );
     for (var pid in participants) {
       if (participants[pid].getInfo().role === 'sip') {
         result.push(getSipCallInfo(pid));
@@ -2863,13 +2883,13 @@ var Conference = function (rpcClient, selfRpcId) {
         callback('callback', getSipCallInfo(sipCallId));
       }).catch((err) => {
         var reason = (err.message || err);
-        log.error('makeSipCall failed, reason:', reason);
+        log.error(`<${room_id}>: `, 'makeSipCall failed, reason:', reason);
         callback('callback', 'error', reason);
       });
   };
 
   that.controlSipCall = function(sipCallId, cmds, callback) {
-    log.debug('controlSipCall, sipCallId:', sipCallId, 'cmds:', JSON.stringify(cmds));
+    log.debug(`<${room_id}>: `, 'controlSipCall, sipCallId:', sipCallId, 'cmds:', JSON.stringify(cmds));
     if (participants[sipCallId] && participants[sipCallId].getInfo().role === 'sip') {
       var subscription_id;
       for (var sub_id in subscriptions) {
@@ -2889,7 +2909,7 @@ var Conference = function (rpcClient, selfRpcId) {
           callback('callback', getSipCallInfo(sipCallId));
         }).catch((err) => {
           var reason = (err.message || err);
-          log.error('controlSipCall failed, reason:', reason);
+          log.error(`<${room_id}>: `, 'controlSipCall failed, reason:', reason);
           callback('callback', 'error', reason);
         });
     } else {
@@ -2899,7 +2919,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.endSipCall = function(sipCallId, callback) {
-    log.debug('endSipCall, sipCallId:', sipCallId);
+    log.debug(`<${room_id}>: `, 'endSipCall, sipCallId:', sipCallId);
     if (participants[sipCallId] && participants[sipCallId].getInfo().role === 'sip') {
       rpcReq.endSipCall(participants[sipCallId].getPortal(), sipCallId);
       removeParticipant(sipCallId);
@@ -2919,7 +2939,7 @@ var Conference = function (rpcClient, selfRpcId) {
   };
 
   that.destroy = function(callback) {
-    log.info('Destroy room:', room_id);
+    log.info(`<${room_id}>: `, 'Destroy room:', room_id);
     destroyRoom();
     callback('callback', 'Success');
   };

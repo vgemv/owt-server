@@ -130,19 +130,40 @@ var selfNetworkCollector = function (period, onLoad) {
                 let ipstr = i.ip + ":" + i.port;
                 if(!iftopList[ipstr]){
                     let cmdPath = '/usr/sbin/iftop';
-                    let param = ["-oL", cmdPath, '-nNPBt', '-f', `host ${i.ip} and port ${i.port}`];
+                    let param = ["/usr/bin/stdbuf", "-oL", cmdPath, '-nNPBt', '-f', `host ${i.ip} and port ${i.port}`];
                     let cmd = `iftop -nNPBt -f "host ${i.ip} and port ${i.port}"`;
                     networkStats[ipstr] = {
                         in_rate:0,
                         out_rate:0
                     }
                     // 使用 exec 实际 nodejs 会打开一个 shell 来执行指令，child_process.kill 只会杀掉 shell，iftop还在执行。
-                    // 使用 execFile 不会打开 shell。
+                    //     使用 execFile 不会打开 shell。
                     // 使用 stdbuf 可以使用 -oL 参数控制 iftop 的输出缓冲为 line。（pipe状态下缓冲不为line，会导致 stdout 延迟收到)
+                    // 直接运行 stdbuf/iftop 会导致孤儿进程，使用 yeshup 来设置 PR_SET_PDEATHSIG
+                    /*
+                        #include <signal.h>
+                        #include <sys/prctl.h>
+                        #include <unistd.h>
+
+                        int main(int argc, char** argv)
+                        {
+                            if(argc < 2)
+                            {
+                                return -1;
+                            }
+                            prctl(PR_SET_PDEATHSIG, SIGHUP, 0, 0, 0);
+                            return execvp(argv[1], &argv[1]);
+                        }
+                    */
+
                     // iftopList[ipstr] = child_process.exec(cmd);
-                    iftopList[ipstr] = child_process.execFile("/usr/bin/stdbuf", param, (err)=>{
+                    iftopList[ipstr] = child_process.execFile("/usr/bin/yeshup", param, (err)=>{
                         delete iftopList[ipstr];
                         log.debug("iftop exit: ",err);
+                    });
+                    iftopList[ipstr].on("disconnect",()=>{
+                        iftopList[ipstr].kill();
+                        delete iftopList[ipstr];
                     });
                     iftopList[ipstr].stdout.on("data",(stdout)=>{
                         let in_fmted = stdout.split("\n")

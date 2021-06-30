@@ -53,7 +53,7 @@ const mediaConfig = require('./mediaConfig');
 class Connection extends EventEmitter {
   constructor (id, threadPool, ioThreadPool, options = {}) {
     super();
-    log.info(`message: Connection, id: ${id}`);
+    log.info(`[${this.owner}]: `, `message: Connection, id: ${id}`);
     this.id = id;
     this.threadPool = threadPool;
     this.ioThreadPool = ioThreadPool;
@@ -64,6 +64,7 @@ class Connection extends EventEmitter {
     this.ipAddresses = options.ipAddresses || '';
     this.trickleIce = options.trickleIce || false;
     this.metadata = this.options.metadata || {};
+    this.owner = this.options.owner;
     this.isProcessingRemoteSdp = false;
     this.ready = false;
     this.wrtc = this._createWrtc();
@@ -73,7 +74,7 @@ class Connection extends EventEmitter {
     if (mediaConfig && mediaConfig.default) {
         return JSON.stringify(mediaConfig.default);
     } else {
-      log.warn(
+      log.warn(`[${this.owner}]: `, 
         'message: Bad media config file. You need to specify a default codecConfiguration.'
       );
       return JSON.stringify({});
@@ -102,7 +103,7 @@ class Connection extends EventEmitter {
   }
 
   _createMediaStream(id, options = {}, isPublisher = true) {
-    log.debug(`message: _createMediaStream, connectionId: ${this.id}, ` +
+    log.debug(`[${this.owner}]: `, `message: _createMediaStream, connectionId: ${this.id}, ` +
               `mediaStreamId: ${id}, isPublisher: ${isPublisher}`);
     const mediaStream = new addon.MediaStream(this.threadPool, this.wrtc, id,
       options.label, this._getMediaConfiguration(this.mediaConfiguration), isPublisher);
@@ -115,13 +116,13 @@ class Connection extends EventEmitter {
     // setInterval(()=>{
 
     //   mediaStream.getStats((e)=>{
-    //     log.error("getPeriodicStats:",e);
+    //     log.error(`[${this.owner}]: `, "getPeriodicStats:",e);
     //   });
     // },1000);
 
 
     // mediaStream.getPeriodicStats((e)=>{
-    //   log.error("getPeriodicStats:",e);
+    //   log.error(`[${this.owner}]: `, "getPeriodicStats:",e);
     // });
     mediaStream.onMediaStreamEvent((type, message) => {
       this._onMediaStreamEvent(type, message, mediaStream.id);
@@ -150,7 +151,7 @@ class Connection extends EventEmitter {
     }
 
     const info = {type: this.options.createOffer || forceOffer ? 'offer' : 'answer', sdp: this.latestSdp};
-    log.debug(`message: _maybeSendAnswer sending event, type: ${info.type}, streamId: ${streamId}`);
+    log.debug(`[${this.owner}]: `, `message: _maybeSendAnswer sending event, type: ${info.type}, streamId: ${streamId}`);
     this.emit('status_event', info, evt, streamId);
   }
 
@@ -160,12 +161,12 @@ class Connection extends EventEmitter {
     }
     const firstStreamId = streamId;
     this.initialized = true;
-    log.debug(`message: Init Connection, connectionId: ${this.id} `+
+    log.debug(`[${this.owner}]: `, `message: Init Connection, connectionId: ${this.id} `+
               `${logger.objectToLog(this.options)}`);
     this.sessionVersion = 0;
 
     this.wrtc.init((newStatus, mess, streamId) => {
-      log.debug('message: WebRtcConnection status update, ' +
+      log.debug(`[${this.owner}]: `, 'message: WebRtcConnection status update, ' +
                'id: ' + this.id + ', status: ' + newStatus +
                 ', ' + logger.objectToLog(this.metadata) + mess);
       switch(newStatus) {
@@ -196,13 +197,13 @@ class Connection extends EventEmitter {
           break;
 
         case CONN_FAILED:
-          log.warn('message: failed the ICE process, ' + 'code: ' + WARN_BAD_CONNECTION +
+          log.warn(`[${this.owner}]: `, 'message: failed the ICE process, ' + 'code: ' + WARN_BAD_CONNECTION +
                    ', id: ' + this.id);
           this.emit('status_event', {type: 'failed', sdp: mess}, newStatus);
           break;
 
         case CONN_READY:
-          log.debug('message: connection ready, ' + 'id: ' + this.id +
+          log.debug(`[${this.owner}]: `, 'message: connection ready, ' + 'id: ' + this.id +
                     ', ' + 'status: ' + newStatus + ' ' + mess + ',' + streamId);
           if (!this.ready) {
             this.ready = true;
@@ -212,7 +213,7 @@ class Connection extends EventEmitter {
       }
     });
     if (this.options.createOffer) {
-      log.debug('message: create offer requested, id:', this.id);
+      log.debug(`[${this.owner}]: `, 'message: create offer requested, id:', this.id);
       const audioEnabled = this.options.createOffer.audio;
       const videoEnabled = this.options.createOffer.video;
       const bundle = this.options.createOffer.bundle;
@@ -223,7 +224,7 @@ class Connection extends EventEmitter {
   }
 
   addMediaStream(id, options, isPublisher) {
-    log.info(`message: addMediaStream, connectionId: ${this.id}, mediaStreamId: ${id}`);
+    log.info(`[${this.owner}]: `, `message: addMediaStream, connectionId: ${this.id}, mediaStreamId: ${id}`);
     if (this.mediaStreams.get(id) === undefined) {
       const mediaStream = this._createMediaStream(id, options, isPublisher);
       this.wrtc.addMediaStream(mediaStream);
@@ -236,10 +237,10 @@ class Connection extends EventEmitter {
       this.wrtc.removeMediaStream(id);
       this.mediaStreams.get(id).close();
       this.mediaStreams.delete(id);
-      log.debug(`removed mediaStreamId ${id}, remaining size ${this.getNumMediaStreams()}`);
+      log.debug(`[${this.owner}]: `, `removed mediaStreamId ${id}, remaining size ${this.getNumMediaStreams()}`);
       // this._maybeSendAnswer(CONN_SDP, id, true);
     } else {
-      log.error(`message: Trying to remove mediaStream not found, id: ${id}`);
+      log.error(`[${this.owner}]: `, `message: Trying to remove mediaStream not found, id: ${id}`);
     }
   }
 
@@ -284,11 +285,11 @@ class Connection extends EventEmitter {
   }
 
   close() {
-    log.info(`message: Closing connection ${this.id}`);
-    log.info(`message: WebRtcConnection status update, id: ${this.id}, status: ${CONN_FINISHED}, ` +
+    log.info(`[${this.owner}]: `, `message: Closing connection ${this.id}`);
+    log.info(`[${this.owner}]: `, `message: WebRtcConnection status update, id: ${this.id}, status: ${CONN_FINISHED}, ` +
             `${logger.objectToLog(this.metadata)}`);
     this.mediaStreams.forEach((mediaStream, id) => {
-      log.debug(`message: Closing mediaStream, connectionId : ${this.id}, `+
+      log.debug(`[${this.owner}]: `, `message: Closing mediaStream, connectionId : ${this.id}, `+
         `mediaStreamId: ${id}`);
       mediaStream.close();
     });

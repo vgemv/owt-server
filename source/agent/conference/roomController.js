@@ -165,7 +165,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var enableAVCoordination = function (view) {
-        log.debug('enableAVCoordination');
+        log.debug(`<${room_id}>: `, 'enableAVCoordination');
         if (!mix_views[view])
             return;
 
@@ -182,7 +182,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var resetVAD = function (view) {
-        log.debug('resetVAD', view);
+        log.debug(`<${room_id}>: `, 'resetVAD', view);
         if (!mix_views[view])
             return;
 
@@ -209,18 +209,18 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         var initMixer = (mixerId, type, mixConfig) => new Promise(function(resolve, reject) {
             newTerminal(mixerId, type, mixStreamId, false, origin,
                 function onTerminalReady() {
-                    log.debug('new terminal ok. terminal_id', mixerId, 'type:', type, 'view:', view, 'mixConfig:', mixConfig);
+                    log.debug(`<${room_id}>: `, 'new terminal ok. terminal_id', mixerId, 'type:', type, 'view:', view, 'mixConfig:', mixConfig);
                     initMediaProcessor(mixerId, ['mixing', mixConfig, room_id, selfRpcId, view])
                     .then(function(initMediaResult) {
                         resolve(initMediaResult);
                     }).catch(function(reason) {
-                        log.error("Init media processor failed.:", reason);
+                        log.error(`<${room_id}>: `, "Init media processor failed.:", reason);
                         deleteTerminal(mixerId);
                         reject(reason);
                     });
                 },
                 function onTerminalFail(reason) {
-                    log.error('new mix terminal failed. room_id:', room_id, 'reason:', reason);
+                    log.error(`<${room_id}>: `, 'new mix terminal failed. room_id:', room_id, 'reason:', reason);
                     reject(reason);
                 }
             );
@@ -269,7 +269,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     const initSelector = function (onOk, onError) {
-        log.debug('initialize selector');
+        log.debug(`<${room_id}>: `, 'initialize selector');
         // Initialize selector
         const selectorId = randomId();
         const selectConfig = {
@@ -283,7 +283,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         activeAudio.terminal = selectorId;
         newTerminal(selectorId, 'aselect', 'admin', false, origin,
             function onTerminalReady() {
-                log.debug('new terminal ok. terminal_id', selectorId);
+                log.debug(`<${room_id}>: `, 'new terminal ok. terminal_id', selectorId);
                 terminals[selectorId].published = activeAudio.streams;
                 initMediaProcessor(selectorId,
                     ['selecting', selectConfig, room_id, selfRpcId, 'placehodler'])
@@ -302,20 +302,20 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                     });
                     onOk(initMediaResult);
                 }).catch(function(reason) {
-                    log.error("Init media processor failed.:", reason);
+                    log.error(`<${room_id}>: `, "Init media processor failed.:", reason);
                     deleteTerminal(selectorId);
                     onError(reason);
                 });
             },
             function onTerminalFail(reason) {
-                log.error('new mix terminal failed. room_id:', room_id, 'reason:', reason);
+                log.error(`<${room_id}>: `, 'new mix terminal failed. room_id:', room_id, 'reason:', reason);
                 onError(reason);
             }
         );
     };
 
     var initialize = function (on_ok, on_error) {
-        log.debug('initialize room', room_id);
+        log.debug(`<${room_id}>: `, 'initialize room', room_id);
 
         // Mix stream ID is room ID followed by view index
         if (config.views.length > 0) {
@@ -334,11 +334,11 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                     viewProcessed.push(new Promise(function(resolve, reject) {
                         initView(viewLabel, viewSettings,
                             function onOk() {
-                                log.debug('init ok for view:', viewLabel);
+                                log.info(`<${room_id}>: `, 'init ok for view:', viewLabel);
                                 resolve(viewLabel);
                             },
                             function onError(reason) {
-                                log.error('init fail. view:', viewLabel, 'reason:', reason);
+                                log.error(`<${room_id}>: `, 'init fail. view:', viewLabel, 'reason:', reason);
                                 errorReason = reason;
                                 delete mix_views[viewLabel];
                                 resolve(null);
@@ -350,7 +350,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                     // Result for callback
                     var viewCount = results.filter(function(re) { return re !== null; }).length;
                     if (viewCount < results.length) {
-                        log.debug("Views incomplete initialization", viewCount);
+                        log.info(`<${room_id}>: `, "Views incomplete initialization", viewCount);
                         on_error(errorReason);
                     } else if (config.selectActiveAudio) {
                         initSelector(function onOk() {
@@ -360,17 +360,17 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                         on_ok(that);
                     }
                 }).catch(function(reason) {
-                    log.error("Error initialize views:", reason);
+                    log.error(`<${room_id}>: `, "Error initialize views:", reason);
                     on_error(reason);
                 });
         } else {
-            log.debug('Room disable mixing init ok');
+            log.debug(`<${room_id}>: `, 'Room disable mixing init ok');
             on_ok(that);
         }
     };
 
     var deinitialize = function () {
-        log.debug('deinitialize');
+        log.info(`<${room_id}>: `, 'deinitialize');
 
         for (var terminal_id in terminals) {
             if (isParticipantTerminal(terminal_id)) {
@@ -396,7 +396,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var newTerminal = function (terminal_id, terminal_type, owner, preAssignedNode, origin, on_ok, on_error) {
-        log.debug('newTerminal:', terminal_id, 'terminal_type:', terminal_type, 'owner:', owner, " origin:", origin);
+        log.debug(`<${room_id}>[${owner}]: `, 'newTerminal:', terminal_id, 'terminal_type:', terminal_type, 'owner:', owner, " origin:", origin);
         if (terminals[terminal_id] === undefined) {
             var terminalPurpose = {
                 'vmixer': 'video',
@@ -430,7 +430,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var deleteTerminal = function (terminal_id) {
-        log.debug('deleteTerminal:', terminal_id);
+        let owner = (terminals[terminal_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'deleteTerminal:', terminal_id);
         if (terminals[terminal_id]) {
             if (terminals[terminal_id].type === 'amixer'
                 || terminals[terminal_id].type === 'axcoder'
@@ -441,7 +442,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                     // Catch the error to avoid the UnhandledPromiseRejectionWarning in node v6,
                     // The current code can reach here due to recycle an already recycled node.
                     // There may be other UnhandledPromiseRejectionWarning somewhere, fix when they appear.
-                    log.warn('MediaNode not recycled for:', terminal_id);
+                    log.warn(`<${room_id}>[${owner}]: `, 'MediaNode not recycled for:', terminal_id);
                 });
             }
             delete terminals[terminal_id];
@@ -466,7 +467,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     }
 
     var spreadStream = function (stream_id, target_node, target_node_type, on_ok, on_error) {
-        log.debug('spreadStream, stream_id:', stream_id, 'target_node:', target_node, 'target_node_type:', target_node_type);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'spreadStream, stream_id:', stream_id, 'target_node:', target_node, 'target_node_type:', target_node_type);
 
         if (!streams[stream_id] || !terminals[streams[stream_id].owner]) {
             return on_error('Cannot spread a non-existing stream');
@@ -484,20 +486,20 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         }
 
         if (original_node === target_node) {
-            log.debug('no need to spread');
+            log.debug(`<${room_id}>[${owner}]: `, 'no need to spread');
             return on_ok();
         } else {
             var i = streams[stream_id].spread.findIndex((s) => {return s.target === target_node;});
             if (i >= 0) {
               if (streams[stream_id].spread[i].status === 'connected') {
-                log.debug('spread already exists:', spread_id);
+                log.debug(`<${room_id}>[${owner}]: `, 'spread already exists:', spread_id);
                 return on_ok();
               } else if (streams[stream_id].spread[i].status === 'connecting') {
-                log.debug('spread is connecting:', spread_id);
+                log.debug(`<${room_id}>[${owner}]: `, 'spread is connecting:', spread_id);
                 streams[stream_id].spread[i].waiting.push({onOK: on_ok, onError: on_error});
                 return;
               } else {
-                log.error('spread status is ambiguous:', spread_id);
+                log.error(`<${room_id}>[${owner}]: `, 'spread status is ambiguous:', spread_id);
                 on_error('spread status is ambiguous');
               }
             }
@@ -505,7 +507,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         streams[stream_id].spread.push({target: target_node, status: 'connecting', waiting: []});
 
         var on_spread_failed = function(reason, cancel_sub, cancel_pub, cancel_out, cancel_in) {
-            log.error('spreadStream failed, stream_id:', stream_id, 'reason:', reason);
+            log.error(`<${room_id}>[${owner}]: `, 'spreadStream failed, stream_id:', stream_id, 'reason:', reason);
             var i = (streams[stream_id] ? streams[stream_id].spread.findIndex((s) => {return s.target === target_node;}) : -1);
             if (i > -1) {
                 streams[stream_id].spread[i].waiting.forEach((e) => {
@@ -548,7 +550,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             });
         }).then(function(from_addr) {
             from = from_addr;
-            log.debug('spreadStream:', stream_id, 'from:', from, 'to:', to);
+            log.debug(`<${room_id}>[${owner}]: `, 'spreadStream:', stream_id, 'from:', from, 'to:', to);
 
             // Publish/Subscribe internal connections
             return new Promise(function(resolve, reject) {
@@ -557,6 +559,9 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                     return;
                 }
                 var publisher = (terminals[stream_owner] ? terminals[stream_owner].owner : 'common');
+
+                rpcReq.traceLog(cluster, `[${publisher}]{${target_node}}: spread stream ${audio&&"audio"||video&&"video"}`);
+
                 makeRPC(
                     rpcClient,
                     target_node,
@@ -597,7 +602,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             });
         }).then(function () {
             has_subscribed = true;
-            log.debug('internally publish/subscribe ok');
+            log.debug(`<${room_id}>[${owner}]: `, 'internally publish/subscribe ok');
 
             // Linkup after publish/subscribe ready
             return new Promise(function(resolve, reject) {
@@ -611,7 +616,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             });
         }).then(function () {
             if (streams[stream_id]) {
-                log.debug('internally linkup ok');
+                log.debug(`<${room_id}>[${owner}]: `, 'internally linkup ok');
                 var i = streams[stream_id].spread.findIndex((s) => {return s.target === target_node;});
                 if (i >= 0) {
                   streams[stream_id].spread[i].status = 'connected';
@@ -627,7 +632,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                   return Promise.reject('spread record missing');
                 }
             } else {
-                log.error('Stream early released');
+                log.error(`<${room_id}>[${owner}]: `, 'Stream early released');
                 return Promise.reject('Stream early released');
             }
         }).catch(function(err) {
@@ -636,7 +641,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var shrinkStream = function (stream_id, target_node) {
-        log.debug('shrinkStream, stream_id:', stream_id, 'target_node:', target_node);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'shrinkStream, stream_id:', stream_id, 'target_node:', target_node);
         if (streams[stream_id] && terminals[streams[stream_id].owner]) {
             var stream_owner = streams[stream_id].owner,
                 original_node = terminals[stream_owner].locality.node,
@@ -684,7 +690,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var mixAudio = function (stream_id, view, on_ok, on_error) {
-        log.debug('to mix audio of stream:', stream_id, 'mixed view:', view);
+        let owner = (streams[stream_id]||{}).owner;
+        log.info(`<${room_id}>[${owner}]: `, 'to mix audio of stream:', stream_id, 'mixed view:', view);
         var audio_mixer = getSubMediaMixer(view, 'audio');
         if (streams[stream_id] && audio_mixer && terminals[audio_mixer]) {
             var target_node = terminals[audio_mixer].locality.node,
@@ -707,13 +714,14 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 }
             }, on_error);
         } else {
-            log.error('Audio mixer is NOT ready.');
+            log.error(`<${room_id}>[${owner}]: `, 'Audio mixer is NOT ready.');
             on_error('Audio mixer is NOT ready.');
         }
     };
 
     var unmixAudio = function (stream_id, view) {
-        log.debug('to unmix audio of view:', view);
+        let owner = (streams[stream_id]||{}).owner;
+        log.info(`<${room_id}>[${owner}]: `, 'to unmix audio of view:', view);
         var audio_mixer = getSubMediaMixer(view, 'audio');
         if (streams[stream_id] && streams[stream_id].audio && audio_mixer && terminals[audio_mixer]) {
             var target_node = terminals[audio_mixer].locality.node,
@@ -728,7 +736,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var mixVideo = function (stream_id, view, on_ok, on_error) {
-        log.debug('to mix video of stream:', stream_id);
+        let owner = (streams[stream_id]||{}).owner;
+        log.info(`<${room_id}>[${owner}]: `, 'to mix video of stream:', stream_id);
         var video_mixer = getSubMediaMixer(view, 'video');
         if (streams[stream_id] && video_mixer && terminals[video_mixer]) {
             var target_node = terminals[video_mixer].locality.node,
@@ -751,13 +760,14 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 }
             }, on_error);
         } else {
-            log.error('Video mixer is NOT ready.');
+            log.error(`<${room_id}>[${owner}]: `, 'Video mixer is NOT ready.');
             on_error('Video mixer is NOT ready.');
         }
     };
 
     var unmixVideo = function (stream_id, view) {
-        log.debug('to unmix video of stream:', stream_id);
+        let owner = (streams[stream_id]||{}).owner;
+        log.info(`<${room_id}>[${owner}]: `, 'to unmix video of stream:', stream_id);
         var video_mixer = getSubMediaMixer(view, 'video');
         if (streams[stream_id] && streams[stream_id].video && video_mixer && terminals[video_mixer]) {
             var target_node = terminals[video_mixer].locality.node,
@@ -772,7 +782,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var mixStream = function (stream_id, view, on_ok, on_error) {
-        log.debug('to mix stream:', stream_id, 'view:', view);
+        let owner = (streams[stream_id]||{}).owner;
+        log.info(`<${room_id}>[${owner}]: `, 'to mix stream:', stream_id, 'view:', view);
         if (streams[stream_id].audio) {
             mixAudio(stream_id, view, function () {
                 if (streams[stream_id].video && getSubMediaMixer(view, 'video')) {
@@ -792,7 +803,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var unmixStream = function (stream_id, view) {
-        log.debug('to unmix stream:', stream_id);
+        let owner = (streams[stream_id]||{}).owner;
+        log.info(`<${room_id}>[${owner}]: `, 'to unmix stream:', stream_id);
         if (streams[stream_id] && streams[stream_id].audio) {
             unmixAudio(stream_id, view);
         }
@@ -807,14 +819,14 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         if (audio_mixer && terminals[audio_mixer]) {
             var amixer_node = terminals[audio_mixer].locality.node;
             var for_whom = (terminals[subscriber] ? terminals[subscriber].owner : 'common');
-            log.debug('spawnMixedAudio, for subscriber:', subscriber, 'audio_format:', audio_format);
+            log.debug(`<${room_id}>[${for_whom}]: `, 'spawnMixedAudio, for subscriber:', subscriber, 'audio_format:', audio_format);
             makeRPC(
                 rpcClient,
                 amixer_node,
                 'generate',
                 [for_whom, audio_format],
                 function (stream_id) {
-                    log.debug('spawnMixedAudio ok, amixer_node:', amixer_node, 'stream_id:', stream_id);
+                    log.debug(`<${room_id}>[${for_whom}]: `, 'spawnMixedAudio ok, amixer_node:', amixer_node, 'stream_id:', stream_id);
                     if (terminals[audio_mixer]) {
                         if (streams[stream_id] === undefined) {
                             streams[stream_id] = {
@@ -840,14 +852,14 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         var video_mixer = getSubMediaMixer(view, 'video');
         if (video_mixer && terminals[video_mixer]) {
             var vmixer_node = terminals[video_mixer].locality.node;
-            log.debug('spawnMixedVideo, view:', view, 'format:', format, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
+            log.debug(`<${room_id}>: `, 'spawnMixedVideo, view:', view, 'format:', format, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
             makeRPC(
                 rpcClient,
                 vmixer_node,
                 'generate',
                 [format, resolution, framerate, bitrate, keyFrameInterval],
                 function (stream) {
-                    log.debug('spawnMixedVideo ok, vmixer_node:', vmixer_node, 'stream:', stream);
+                    log.debug(`<${room_id}>: `, 'spawnMixedVideo ok, vmixer_node:', vmixer_node, 'stream:', stream);
                     if (terminals[video_mixer]) {
                         if (streams[stream.id] === undefined) {
                             streams[stream.id] = {
@@ -910,17 +922,17 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
 
     var spawnTranscodedAudio = function (axcoder, audio_format, on_ok, on_error) {
         var axcoder_node = terminals[axcoder].locality.node;
-        log.debug('spawnTranscodedAudio, audio_format:', audio_format);
+        log.debug(`<${room_id}>: `, 'spawnTranscodedAudio, audio_format:', audio_format);
         makeRPC(
             rpcClient,
             axcoder_node,
             'generate',
             [audio_format, audio_format],
             function (stream_id) {
-                log.debug('spawnTranscodedAudio ok, stream_id:', stream_id);
+                log.debug(`<${room_id}>: `, 'spawnTranscodedAudio ok, stream_id:', stream_id);
                 if (terminals[axcoder]) {
                     if (streams[stream_id] === undefined) {
-                        log.debug('add transcoded stream to streams:', stream_id);
+                        log.debug(`<${room_id}>: `, 'add transcoded stream to streams:', stream_id);
                         streams[stream_id] = {
                             owner: axcoder,
                             audio: {
@@ -1014,17 +1026,17 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
 
     var spawnTranscodedVideo = function (vxcoder, format, resolution, framerate, bitrate, keyFrameInterval, on_ok, on_error) {
         var vxcoder_node = terminals[vxcoder].locality.node;
-        log.debug('spawnTranscodedVideo, format:', format, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
+        log.debug(`<${room_id}>: `, 'spawnTranscodedVideo, format:', format, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
         makeRPC(
             rpcClient,
             vxcoder_node,
             'generate',
             [format, resolution, framerate, bitrate, keyFrameInterval],
             function (stream) {
-                log.debug('spawnTranscodedVideo ok, stream_id:', stream.id);
+                log.debug(`<${room_id}>: `, 'spawnTranscodedVideo ok, stream_id:', stream.id);
                 if (terminals[vxcoder]) {
                     if (streams[stream.id] === undefined) {
-                        log.debug('add to streams.');
+                        log.debug(`<${room_id}>: `, 'add to streams.');
                         streams[stream.id] = {
                             owner: vxcoder,
                             audio: undefined,
@@ -1127,8 +1139,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var terminateTemporaryStream = function (stream_id) {
-        log.debug('terminateTemporaryStream:', stream_id);
         var owner = streams[stream_id].owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'terminateTemporaryStream:', stream_id);
         var node = terminals[owner].locality.node;
         makeRPC(
             rpcClient,
@@ -1149,7 +1161,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var recycleTemporaryAudio = function (stream_id) {
-        log.debug('trying recycleTemporaryAudio:', stream_id);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'trying recycleTemporaryAudio:', stream_id);
         if (streams[stream_id] &&
             streams[stream_id].audio &&
             streams[stream_id].audio.subscribers.length === 0) {
@@ -1161,7 +1174,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var recycleTemporaryVideo = function (stream_id) {
-        log.debug('trying recycleTemporaryVideo:', stream_id);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'trying recycleTemporaryVideo:', stream_id);
         if (streams[stream_id] &&
             streams[stream_id].video &&
             streams[stream_id].video.subscribers &&
@@ -1210,11 +1224,12 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var getAudioStream = function (stream_id, audio_format, subscriber, on_ok, on_error) {
-        log.debug('getAudioStream, stream:', stream_id, 'audio_format:', audio_format, 'subscriber:', subscriber, );
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'getAudioStream, stream:', stream_id, 'audio_format:', audio_format, 'subscriber:', subscriber, );
         var mixView = getViewOfMixStream(stream_id);
         if (mixView) {
             getMixedAudio(mixView, audio_format, subscriber, function (streamID) {
-                log.debug('Got mixed audio:', streamID);
+                log.debug(`<${room_id}>[${owner}]: `, 'Got mixed audio:', streamID);
                 on_ok(streamID);
             }, on_error);
         } else if (streams[stream_id]) {
@@ -1292,12 +1307,13 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     var getVideoStream = function (stream_id, format, resolution, framerate, bitrate, keyFrameInterval, simulcastRid, on_ok, on_error) {
-        log.debug('getVideoStream, stream:', stream_id, 'format:', format, 'resolution:', resolution, 'framerate:', framerate,
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'getVideoStream, stream:', stream_id, 'format:', format, 'resolution:', resolution, 'framerate:', framerate,
                 'bitrate:', bitrate, 'keyFrameInterval', keyFrameInterval, 'simulcastRid', simulcastRid);
         var mixView = getViewOfMixStream(stream_id);
         if (mixView) {
             getMixedVideo(mixView, format, resolution, framerate, bitrate, keyFrameInterval, function (streamID) {
-                log.debug('Got mixed video:', streamID);
+                log.debug(`<${room_id}>[${owner}]: `, 'Got mixed video:', streamID);
                 on_ok(streamID);
             }, on_error);
         } else if (streams[stream_id]) {
@@ -1306,7 +1322,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 if (isSimulcastStream(stream_id)) {
                     const matchedSimId = simulcastVideoMatched(stream_id, format, resolution, framerate, bitrate, keyFrameInterval, simulcastRid);
                     if (matchedSimId) {
-                        log.debug('match simulcast stream:', matchedSimId);
+                        log.debug(`<${room_id}>[${owner}]: `, 'match simulcast stream:', matchedSimId);
                         on_ok(matchedSimId);
                     } else {
                         on_error('Simulcast stream not matched:' + stream_id);
@@ -1328,7 +1344,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
 
     var unpublishStream = function (stream_id) {
         if (streams[stream_id]) {
-            log.debug('unpublishStream:', stream_id, 'stream.owner:', streams[stream_id].owner);
+            log.debug(`<${room_id}>[${streams[stream_id].owner}]: `, 'unpublishStream:', stream_id, 'stream.owner:', streams[stream_id].owner);
             var stream = streams[stream_id],
                 terminal_id = stream.owner,
                 node = terminals[terminal_id].locality.node;
@@ -1347,13 +1363,13 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             stream.close && stream.close();
             delete streams[stream_id];
         } else {
-            log.info('try to unpublish an unexisting stream:', stream_id);
+            log.info(`<${room_id}>: `, 'try to unpublish an unexisting stream:', stream_id);
         }
     };
 
     var unsubscribeStream = function (subscriber, subscription_id) {
         if (terminals[subscriber]) {
-            log.debug('unsubscribeStream, subscriber:', subscriber, 'subscription_id:', subscription_id);
+            log.debug(`<${room_id}>[${terminals[subscriber].owner}]: `, 'unsubscribeStream, subscriber:', subscriber, 'subscription_id:', subscription_id);
             var node = terminals[subscriber].locality.node,
                 subscription = terminals[subscriber].subscribed[subscription_id],
                 audio_stream = subscription && subscription.audio,
@@ -1387,12 +1403,13 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
 
             delete terminals[subscriber].subscribed[subscription_id];
         } else {
-            log.info('try to unsubscribe to an unexisting terminal:', subscriber);
+            log.info(`<${room_id}>: `, 'try to unsubscribe to an unexisting terminal:', subscriber);
         }
     };
 
     var removeSubscriptions = function (stream_id) {
-        log.debug('removeSubscriptions:', stream_id);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'removeSubscriptions:', stream_id);
         if (streams[stream_id]) {
             if (streams[stream_id].audio) {
                 streams[stream_id].audio.subscribers.forEach(function(terminal_id) {
@@ -1476,7 +1493,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     const rebuildStream = (streamId, accessNode, on_ok, on_error) => {
-        log.debug('rebuildStream, streamId:', streamId, 'accessNode:', accessNode.node);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'rebuildStream, streamId:', streamId, 'accessNode:', accessNode.node);
 
         var old_st = JSON.parse(JSON.stringify(streams[streamId]));
         terminals[old_st.owner].locality = accessNode;
@@ -1491,7 +1509,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                     spreadStream(streamId, target_node.target, 'participant', function() {
                         res('ok');
                     }, function (reason) {
-                        log.warn('Failed in spreading video stream. reason:', reason);
+                        log.warn(`<${room_id}>[${owner}]: `, 'Failed in spreading video stream. reason:', reason);
                         rej(reason);
                     });
                 }, 20);
@@ -1508,12 +1526,12 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                                 'linkup',
                                 [sub_id, undefined, streamId, undefined],
                                 function () {
-                                    log.debug('resumed sub_id:', sub_id, 'for streamId:', streamId);
+                                    log.debug(`<${room_id}>[${owner}]: `, 'resumed sub_id:', sub_id, 'for streamId:', streamId);
                                     streams[streamId].video.subscribers = streams[streamId].video.subscribers || [];
                                     streams[streamId].video.subscribers.push(t_id);
                                     terminals[t_id].subscribed[sub_id].video = streamId;
                                 }, function (reason) {
-                                    log.warn('Failed in resuming video subscription:', sub_id, 'reason:', reason);
+                                    log.warn(`<${room_id}>[${owner}]: `, 'Failed in resuming video subscription:', sub_id, 'reason:', reason);
                                 });
                         }
                     }
@@ -1521,17 +1539,17 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             });
         })
         .then(function () {
-            log.debug('Rebuild stream and its subscriptions ok.');
+            log.debug(`<${room_id}>[${owner}]: `, 'Rebuild stream and its subscriptions ok.');
             on_ok('ok');
         })
         .catch(function (err) {
-            log.info('Rebuild stream and or its subscriptions failed. err:', err);
+            log.info(`<${room_id}>[${owner}]: `, 'Rebuild stream and or its subscriptions failed. err:', err);
             on_error(err);
         });
     };
 
     that.publish = function (participantId, streamId, accessNode, streamInfo, streamType, on_ok, on_error) {
-        log.debug('publish, participantId: ', participantId, 'streamId:', streamId, 'accessNode:', accessNode.node, 'streamInfo:', JSON.stringify(streamInfo), ' origin is:', origin);
+        log.info(`<${room_id}>[${participantId}]: `, 'publish, participantId: ', participantId, 'streamId:', streamId, 'accessNode:', accessNode.node, 'streamInfo:', JSON.stringify(streamInfo), ' origin is:', origin);
         if (streams[streamId] === undefined) {
             var terminal_id = pubTermId(participantId, streamId);
             var terminal_owner = (streamType === 'webrtc' || streamType === 'sip' || streamType === 'quic') ? participantId : room_id + '-' + randomId();
@@ -1562,14 +1580,14 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.unpublish = function (participantId, streamId) {
-        log.debug('unpublish, stream_id:', streamId);
+        log.info(`<${room_id}>[${participantId}]: `, 'unpublish, stream_id:', streamId);
         var terminal_id = pubTermId(participantId, streamId);
 
         if (streams[streamId] === undefined
             || streams[streamId].owner !== terminal_id
             || terminals[terminal_id] === undefined
             || terminals[terminal_id].published.indexOf(streamId) === -1) {
-            log.info('unpublish a rogue stream:', streamId);
+            log.info(`<${room_id}>[${participantId}]: `, 'unpublish a rogue stream:', streamId);
         }
 
         if (streams[streamId]) {
@@ -1580,7 +1598,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.subscribe = function(participantId, subscriptionId, accessNode, subInfo, subType, isAudioPubPermitted, on_ok, on_error) {
-        log.debug('subscribe, participantId:', participantId, 'subscriptionId:', subscriptionId, 'accessNode:', accessNode.node, 'subInfo:', JSON.stringify(subInfo), 'subType:', subType);
+        log.info(`<${room_id}>[${participantId}]: `, 'subscribe, participantId:', participantId, 'subscriptionId:', subscriptionId, 'accessNode:', accessNode.node, 'subInfo:', JSON.stringify(subInfo), 'subType:', subType);
         const mediaInfo = subInfo.media;
         if ((!mediaInfo.audio || (streams[mediaInfo.audio.from] && streams[mediaInfo.audio.from].audio) || getViewOfMixStream(mediaInfo.audio.from))
             && (!mediaInfo.video || (streams[mediaInfo.video.from] && streams[mediaInfo.video.from].video) || getViewOfMixStream(mediaInfo.video.from))) {
@@ -1594,8 +1612,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                     : getForwardFormat(mediaInfo.audio, streams[subAudioStream].audio.format, enable_audio_transcoding);
 
                 if (audio_format === 'unavailable') {
-                    log.error('No available audio format');
-                    log.debug('mediaInfo.audio:', mediaInfo.audio, 'targetStream.audio:', streams[subAudioStream] ? streams[subAudioStream].audio : 'mixed_stream', 'enable_audio_transcoding:', enable_audio_transcoding);
+                    log.error(`<${room_id}>[${participantId}]: `, 'No available audio format');
+                    log.debug(`<${room_id}>[${participantId}]: `, 'mediaInfo.audio:', mediaInfo.audio, 'targetStream.audio:', streams[subAudioStream] ? streams[subAudioStream].audio : 'mixed_stream', 'enable_audio_transcoding:', enable_audio_transcoding);
                     return on_error('No available audio format');
                 }
             }
@@ -1620,8 +1638,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 }
 
                 if (video_format === 'unavailable') {
-                    log.error('No available video format');
-                    log.debug('mediaInfo.video:', mediaInfo.video, 'targetStream.video:', streams[subVideoStream] ? streams[subVideoStream].video : 'mixed_stream', 'enable_video_transcoding:', enable_video_transcoding);
+                    log.error(`<${room_id}>[${participantId}]: `, 'No available video format');
+                    log.debug(`<${room_id}>[${participantId}]: `, 'mediaInfo.video:', mediaInfo.video, 'targetStream.video:', streams[subVideoStream] ? streams[subVideoStream].video : 'mixed_stream', 'enable_video_transcoding:', enable_video_transcoding);
                     return on_error('No available video format');
                 }
 
@@ -1632,14 +1650,14 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             }
 
             if ((mediaInfo.audio && !audio_format) || (mediaInfo.video && !video_format)) {
-                log.error('No proper audio/video format');
+                log.error(`<${room_id}>[${participantId}]: `, 'No proper audio/video format');
                 return on_error('No proper audio/video format');
             }
 
             var terminal_id = subTermId(participantId, subscriptionId);
 
             var finaly_error = function (error_reason) {
-                log.error('subscribe failed, reason:', error_reason);
+                log.error(`<${room_id}>[${participantId}]: `, 'subscribe failed, reason:', error_reason);
                 deleteTerminal(terminal_id);
                 on_error(error_reason);
             };
@@ -1682,7 +1700,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             };
 
             var linkup = function (audioStream, videoStream, dataStream) {
-                log.debug('linkup, subscriber:', terminal_id, 'audioStream:', audioStream, 'videoStream:', videoStream, ', dataStream: ', dataStream);
+                log.debug(`<${room_id}>[${participantId}]: `, 'linkup, subscriber:', terminal_id, 'audioStream:', audioStream, 'videoStream:', videoStream, ', dataStream: ', dataStream);
                 if (terminals[terminal_id] && (!audioStream || streams[audioStream]) && (!videoStream || streams[videoStream]) && (!dataStream||streams[dataStream])) {
                     makeRPC(
                         rpcClient,
@@ -1703,7 +1721,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             };
 
             var spread2LocalNode = function (audioStream, videoStream, dataStream, on_spread_ok, on_spread_error) {
-                log.debug('spread2LocalNode, subscriber:', terminal_id, 'audioStream:', audioStream, 'videoStream:', videoStream, ', dataStream: ', dataStream);
+                log.debug(`<${room_id}>[${participantId}]: `, 'spread2LocalNode, subscriber:', terminal_id, 'audioStream:', audioStream, 'videoStream:', videoStream, ', dataStream: ', dataStream);
                 if (terminals[terminal_id] && dataStream) {
                     const target_node = terminals[terminal_id].locality.node;
                     const target_node_type = terminals[terminal_id].type;
@@ -1730,13 +1748,13 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                             }
                         }, on_error);
                     } else {
-                        log.debug('spread audio and video stream independently.');
+                        log.debug(`<${room_id}>[${participantId}]: `, 'spread audio and video stream independently.');
                         spreadStream(audioStream, target_node, target_node_type, function () {
                             if (streams[audioStream] && streams[videoStream] && terminals[terminal_id]) {
-                                log.debug('spread audioStream:', audioStream, ' ok.');
+                                log.debug(`<${room_id}>[${participantId}]: `, 'spread audioStream:', audioStream, ' ok.');
                                 spreadStream(videoStream, target_node, target_node_type, function () {
                                     if (streams[audioStream] && streams[videoStream] && terminals[terminal_id]) {
-                                        log.debug('spread videoStream:', videoStream, ' ok.');
+                                        log.debug(`<${room_id}>[${participantId}]: `, 'spread videoStream:', videoStream, ' ok.');
                                         on_spread_ok();
                                     } else {
                                         streams[videoStream] && shrinkStream(videoStream, target_node);
@@ -1758,15 +1776,15 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             var doSubscribe = function () {
                 var audio_stream, video_stream;
                 if (mediaInfo.audio) {
-                    log.debug('require audio track of stream:', mediaInfo.audio.from);
+                    log.debug(`<${room_id}>[${participantId}]: `, 'require audio track of stream:', mediaInfo.audio.from);
                     getAudioStream(mediaInfo.audio.from, audio_format, terminal_id, function (streamID) {
                         audio_stream = streamID;
-                        log.debug('Got audio stream:', audio_stream);
+                        log.debug(`<${room_id}>[${participantId}]: `, 'Got audio stream:', audio_stream);
                         if (mediaInfo.video) {
-                            log.debug('require video track of stream:', mediaInfo.video.from);
+                            log.debug(`<${room_id}>[${participantId}]: `, 'require video track of stream:', mediaInfo.video.from);
                             getVideoStream(mediaInfo.video.from, video_format, resolution, framerate, bitrate, keyFrameInterval, mediaInfo.video.simulcastRid, function (streamID) {
                                 video_stream = streamID;
-                                log.debug('Got video stream:', video_stream);
+                                log.debug(`<${room_id}>[${participantId}]: `, 'Got video stream:', video_stream);
                                 spread2LocalNode(audio_stream, video_stream, undefined, function () {
                                     linkup(audio_stream, video_stream);
                                 }, function (error_reason) {
@@ -1788,7 +1806,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                         }
                     }, finaly_error);
                 } else if (mediaInfo.video) {
-                    log.debug('require video track of stream:', mediaInfo.video.from);
+                    log.debug(`<${room_id}>[${participantId}]: `, 'require video track of stream:', mediaInfo.video.from);
                     getVideoStream(mediaInfo.video.from, video_format, resolution, framerate, bitrate, keyFrameInterval, mediaInfo.video.simulcastRid, function (streamID) {
                         video_stream = streamID;
                         spread2LocalNode(undefined, video_stream, undefined, function () {
@@ -1800,15 +1818,15 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                     }, finaly_error);
                 } else if (subInfo.data) {
                     const dataStreamId=subInfo.data.from;
-                    log.debug('Require data track of stream: ', dataStreamId);
+                    log.debug(`<${room_id}>[${participantId}]: `, 'Require data track of stream: ', dataStreamId);
                     spread2LocalNode(undefined, undefined, dataStreamId, ()=>{
                         linkup(undefined, undefined, dataStreamId)
                     }, (error_reason)=>{
-                        log.error('Spread to local node for data failed: '+error_reason)
+                        log.error(`<${room_id}>[${participantId}]: `, 'Spread to local node for data failed: '+error_reason)
                         finaly_error(error_reason);
                     });
                 } else {
-                    log.debug('No audio or video is required.');
+                    log.debug(`<${room_id}>[${participantId}]: `, 'No audio or video is required.');
                     finaly_error('No audio or video is required.');
                 }
             };
@@ -1818,13 +1836,13 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 doSubscribe();
             }, on_error);
         } else {
-            log.error('streams do not exist or are insufficient. mediaInfo:', mediaInfo);
+            log.error(`<${room_id}>[${participantId}]: `, 'streams do not exist or are insufficient. mediaInfo:', mediaInfo);
             on_error('streams do not exist or are insufficient');
         }
     };
 
     that.unsubscribe = function (participant_id, subscription_id) {
-        log.debug('unsubscribe from participant:', participant_id, 'for subscription:', subscription_id);
+        log.info(`<${room_id}>[${participant_id}]: `, 'unsubscribe from participant:', participant_id, 'for subscription:', subscription_id);
         var terminal_id = subTermId(participant_id, subscription_id);
         if (terminals[terminal_id] && terminals[terminal_id].subscribed[subscription_id]) {
             unsubscribeStream(terminal_id, subscription_id);
@@ -1834,7 +1852,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.updateStream = function (stream_id, track, status) {
-        log.debug('updateStream, stream_id:', stream_id, 'track', track, 'status:', status);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'updateStream, stream_id:', stream_id, 'track', track, 'status:', status);
         if ((config.views.length > 0) && (status === 'active' || status === 'inactive')) {
             if ((track === 'video' || track === 'av') && streams[stream_id] && streams[stream_id].video) {
                 streams[stream_id].video.status = status;
@@ -1869,7 +1888,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.mix = function (stream_id, toView, on_ok, on_error) {
-        log.debug('mix, stream_id:', stream_id, 'to view:', toView);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'mix, stream_id:', stream_id, 'to view:', toView);
         if (!mix_views[toView]) {
             return on_error('Invalid view');
         }
@@ -1885,7 +1905,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.unmix = function (stream_id, fromView, on_ok, on_error) {
-        log.debug('unmix, stream_id:', stream_id, 'from view:', fromView);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'unmix, stream_id:', stream_id, 'from view:', fromView);
         if (!mix_views[fromView]) {
             return on_error('Invalid view');
         }
@@ -1907,7 +1928,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     }
 
     that.dropStaticParticipant = function (staticParticipantId, on_ok, on_error) {
-        log.debug('dropStaticParticipant, staticParticipantId:', staticParticipantId);
+        log.debug(`<${room_id}>: `, 'dropStaticParticipant, staticParticipantId:', staticParticipantId);
 
         Object.keys(mix_views).forEach(view => {
             var video_mixer = getSubMediaMixer(view, 'video');
@@ -1925,7 +1946,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.updateStaticParticipant = function (staticParticipantId, updated, on_ok, on_error) {
-        log.debug('updateStaticParticipant, staticParticipantId:', staticParticipantId);
+        log.debug(`<${room_id}>: `, 'updateStaticParticipant, staticParticipantId:', staticParticipantId);
 
         Object.keys(mix_views).forEach(view => {
             var video_mixer = getSubMediaMixer(view, 'video');
@@ -1944,7 +1965,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     
 
     that.getRegion = function (stream_id, fromView, on_ok, on_error) {
-        log.debug('getRegion, stream_id:', stream_id, 'fromView', fromView);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'getRegion, stream_id:', stream_id, 'fromView', fromView);
         var video_mixer = getSubMediaMixer(fromView, 'video');
         if (video_mixer) {
             makeRPC(
@@ -1960,7 +1982,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.setRegion = function (stream_id, region, toView, on_ok, on_error) {
-        log.debug('setRegion, stream_id:', stream_id, 'toView:', toView, 'region:', region);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'setRegion, stream_id:', stream_id, 'toView:', toView, 'region:', region);
         var video_mixer = getSubMediaMixer(toView, 'video');
         if (video_mixer) {
             makeRPC(
@@ -1978,7 +2001,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.setLayout = function (toView, layout, on_ok, on_error) {
-        log.debug('setLayout, toView:', toView, 'layout:', JSON.stringify(layout));
+        log.debug(`<${room_id}>: `, 'setLayout, toView:', toView, 'layout:', JSON.stringify(layout));
         var video_mixer = getSubMediaMixer(toView, 'video');
         if (video_mixer) {
             makeRPC(
@@ -1999,7 +2022,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.setScene = async function (toView, scene, on_ok, on_error) {
-        log.debug('setScene, toView:', toView, 'scene:', JSON.stringify(scene));
+        log.debug(`<${room_id}>: `, 'setScene, toView:', toView, 'scene:', JSON.stringify(scene));
 
         try{
 
@@ -2028,7 +2051,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.setPrimary = function (inputStreamId, view) {
-        log.debug('setPrimary:', inputStreamId, view);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'setPrimary:', inputStreamId, view);
         var video_mixer = getSubMediaMixer(view, 'video');
 
         if (streams[inputStreamId] && streams[inputStreamId].video && (streams[inputStreamId].video.subscribers.indexOf(video_mixer) !== -1)) {
@@ -2047,7 +2071,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         }
 
         return Object.keys(mix_views).map(function(view) {
-            log.debug('mix stream id:', getMixStreamOfView(view));
+            log.debug(`<${room_id}>: `, 'mix stream id:', getMixStreamOfView(view));
             return {
                 streamId: getMixStreamOfView(view),
                 view: view
@@ -2074,7 +2098,8 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.selectAudio = function (stream_id, on_ok, on_error) {
-        log.debug('to select audio of stream:', stream_id, streams[stream_id], activeAudio.terminal);
+        let owner = (streams[stream_id]||{}).owner;
+        log.debug(`<${room_id}>[${owner}]: `, 'to select audio of stream:', stream_id, streams[stream_id], activeAudio.terminal);
         var audio_selector = activeAudio.terminal;
         if (streams[stream_id] && audio_selector && terminals[audio_selector]) {
             var target_node = terminals[audio_selector].locality.node,
@@ -2091,7 +2116,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 }
             }, on_error);
         } else {
-            log.error('Audio selector is NOT ready.');
+            log.error(`<${room_id}>[${owner}]: `, 'Audio selector is NOT ready.');
             on_error('Audio selector is NOT ready.');
         }
     };
@@ -2124,7 +2149,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         videoMixingConfig.staticParticipants = config.staticParticipants;
         return initMediaProcessor(vmixerId, ['mixing', videoMixingConfig, room_id, selfRpcId, view])
             .then(function (supportedVideo) {
-                log.debug('Init video mixer ok. room_id:', room_id, 'vmixer_id:', vmixerId, 'view:', view);
+                log.debug(`<${room_id}>: `, 'Init video mixer ok. room_id:', room_id, 'vmixer_id:', vmixerId, 'view:', view);
                 // Save supported info
                 if (mix_views[view]) {
                     mix_views[view].video = {
@@ -2137,7 +2162,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 enableAVCoordination(view);
                 return supportedVideo.resolutions;
             }, function (error_reason) {
-                log.error('Init video_mixer failed. room_id:', room_id, 'reason:', error_reason);
+                log.error(`<${room_id}>: `, 'Init video_mixer failed. room_id:', room_id, 'reason:', error_reason);
                 Promise.reject(error_reason);
             });
     };
@@ -2168,12 +2193,12 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             }
         }
 
-        log.debug('rebuildVideoMixer, vmixerId:', vmixerId, 'view:', view);
+        log.debug(`<${room_id}>: `, 'rebuildVideoMixer, vmixerId:', vmixerId, 'view:', view);
         var origin = terminals[vmixerId].origin;
         for (var sub_id in terminals[vmixerId].subscribed) {
             var vst_id = terminals[vmixerId].subscribed[sub_id].video;
             inputs.push(vst_id);
-            log.debug('Abort stream mixing:', vst_id);
+            log.debug(`<${room_id}>: `, 'Abort stream mixing:', vst_id);
             unmixVideo(vst_id, view);
         }
         terminals[vmixerId].subscribed = {};
@@ -2184,7 +2209,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 backup.old_stream_id = st_id;
                 outputs.push(backup);
                 streams[st_id].video.subscribers.forEach(function(t_id) {
-                    log.debug('Aborting subscription to stream :', st_id, 'by subscriber:', t_id);
+                    log.debug(`<${room_id}>: `, 'Aborting subscription to stream :', st_id, 'by subscriber:', t_id);
                     var i = streams[st_id].video.subscribers.indexOf(t_id);
                     i > -1 && streams[st_id].video.subscribers.splice(i, 1);
                     terminals[t_id] && shrinkStream(st_id, terminals[t_id].locality.node);
@@ -2196,13 +2221,13 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         mediaPreference.origin = origin;
         return rpcReq.getWorkerNode(cluster, 'video', {room: room_id, task: vmixerId}, mediaPreference)
             .then(function (locality) {
-                log.debug('Got new video mixer node:', locality);
+                log.debug(`<${room_id}>: `, 'Got new video mixer node:', locality);
                 terminals[vmixerId].locality = locality;
                 return initVideoMixer(vmixerId, view);
             })
             .then(function () {
                 return Promise.all(inputs.map(function (vst_id) {
-                    log.debug('Resuming video mixer input:', vst_id);
+                    log.debug(`<${room_id}>: `, 'Resuming video mixer input:', vst_id);
                     return new Promise(function (resolve, reject) {
                         mixVideo(vst_id, view, resolve, reject);
                     });
@@ -2210,16 +2235,16 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             })
             .then(function () {
                 return Promise.all(outputs.map(function (old_st) {
-                    log.debug('Resuming video mixer output:', old_st);
+                    log.debug(`<${room_id}>: `, 'Resuming video mixer output:', old_st);
                     return new Promise(function (resolve, reject) {
                         getMixedVideo(view, old_st.video.format, old_st.video.resolution, old_st.video.framerate, old_st.video.bitrate, old_st.video.kfi, function(stream_id) {
-                            log.debug('Got new stream:', stream_id);
+                            log.debug(`<${room_id}>: `, 'Got new stream:', stream_id);
                             return Promise.all(old_st.spread.map(function(target_node) {
                                 return new Promise(function (res, rej) {
                                     spreadStream(stream_id, target_node.target, 'participant', function() {
                                         res('ok');
                                     }, function (reason) {
-                                        log.warn('Failed in spreading video stream. reason:', reason);
+                                        log.warn(`<${room_id}>: `, 'Failed in spreading video stream. reason:', reason);
                                         rej(reason);
                                     });
                                 });
@@ -2239,7 +2264,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                                                         streams[stream_id].video.subscribers.push(t_id);
                                                         terminals[t_id].subscribed[sub_id].video = stream_id;
                                                     }, function (reason) {
-                                                        log.warn('Failed in resuming video subscription. reason:', reason);
+                                                        log.warn(`<${room_id}>: `, 'Failed in resuming video subscription. reason:', reason);
                                                     });
                                             }
                                         }
@@ -2247,12 +2272,12 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                                 });
                             })
                             .then(function () {
-                                log.debug('Resumed video mixer output ok.');
+                                log.debug(`<${room_id}>: `, 'Resumed video mixer output ok.');
                                 forceKeyFrame(stream_id);
                                 resolve('ok');
                             })
                             .catch(function (err) {
-                                log.info('Resumed video mixer output failed. err:', err);
+                                log.info(`<${room_id}>: `, 'Resumed video mixer output failed. err:', err);
                                 reject(err);
                             });
                         }, reject);
@@ -2260,7 +2285,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 }));
             })
             .catch(function (reason) {
-                log.error('Rebuid video mixer failed, reason:', (typeof reason === 'string') ? reason : reason.message);
+                log.error(`<${room_id}>: `, 'Rebuid video mixer failed, reason:', (typeof reason === 'string') ? reason : reason.message);
                 setTimeout(function () {throw Error('Rebuild video mixer failed.');});
             });
     };
@@ -2269,7 +2294,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         var old_locality = terminals[vxcoderId].locality;
         var input, outputs = [];
 
-        log.debug('rebuildVideoTranscoder, vxcoderId:', vxcoderId);
+        log.debug(`<${room_id}>: `, 'rebuildVideoTranscoder, vxcoderId:', vxcoderId);
         var origin = terminals[vxcoderId].origin;
         for (var sub_id in terminals[vxcoderId].subscribed) {
             var vst_id = terminals[vxcoderId].subscribed[sub_id].video;
@@ -2286,7 +2311,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 backup.old_stream_id = st_id;
                 outputs.push(backup);
                 streams[st_id].video.subscribers.forEach(function(t_id) {
-                    log.debug('Aborting subscription to stream :', st_id, 'by subscriber:', t_id);
+                    log.debug(`<${room_id}>: `, 'Aborting subscription to stream :', st_id, 'by subscriber:', t_id);
                     var i = streams[st_id].video.subscribers.indexOf(t_id);
                     i > -1 && streams[st_id].video.subscribers.splice(i, 1);
                     terminals[t_id] && shrinkStream(st_id, terminals[t_id].locality.node);
@@ -2299,16 +2324,16 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         return Promise.resolve('ok')
             .then(function () {
                 return Promise.all(outputs.map(function (old_st) {
-                    log.debug('Resuming video xcoder output:', old_st);
+                    log.debug(`<${room_id}>: `, 'Resuming video xcoder output:', old_st);
                     return new Promise(function (resolve, reject) {
                         getTranscodedVideo(old_st.video.format, old_st.video.resolution, old_st.video.framerate, old_st.video.bitrate, old_st.video.kfi, input, function(stream_id) {
-                            log.debug('Got new stream:', stream_id);
+                            log.debug(`<${room_id}>: `, 'Got new stream:', stream_id);
                             return Promise.all(old_st.spread.map(function(target_node) {
                                 return new Promise(function (res, rej) {
                                     spreadStream(stream_id, target_node.target, 'participant', function() {
                                         res('ok');
                                     }, function (reason) {
-                                        log.warn('Failed in spreading video stream. reason:', reason);
+                                        log.warn(`<${room_id}>: `, 'Failed in spreading video stream. reason:', reason);
                                         rej(reason);
                                     });
                                 });
@@ -2328,7 +2353,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                                                         streams[stream_id].video.subscribers.push(t_id);
                                                         terminals[t_id].subscribed[sub_id].video = stream_id;
                                                     }, function (reason) {
-                                                        log.warn('Failed in resuming video subscription. reason:', reason);
+                                                        log.warn(`<${room_id}>: `, 'Failed in resuming video subscription. reason:', reason);
                                                     });
                                             }
                                         }
@@ -2336,12 +2361,12 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                                 });
                             })
                             .then(function () {
-                                log.debug('Resumed video xcoder output ok.');
+                                log.debug(`<${room_id}>: `, 'Resumed video xcoder output ok.');
                                 forceKeyFrame(stream_id);
                                 resolve('ok');
                             })
                             .catch(function (err) {
-                                log.info('Resumed video xcoder output failed. err:', err);
+                                log.info(`<${room_id}>: `, 'Resumed video xcoder output failed. err:', err);
                                 reject(err);
                             });
                         }, reject);
@@ -2349,7 +2374,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 }));
             })
             .catch(function (reason) {
-                log.error('Rebuid video transcoder failed, reason:', (typeof reason === 'string') ? reason : reason.message);
+                log.error(`<${room_id}>: `, 'Rebuid video transcoder failed, reason:', (typeof reason === 'string') ? reason : reason.message);
                 setTimeout(function () {throw Error('Rebuild video transcoder failed.');});
             });
     };
@@ -2358,7 +2383,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         var audioMixingConfig = getViewMixingConfig(view).audio;
         return initMediaProcessor(amixerId, ['mixing', audioMixingConfig, room_id, selfRpcId, view])
             .then(function (supportedAudio) {
-                log.debug('Init audio mixer ok. room_id:', room_id, 'amixer_id:', amixerId, 'view:', view);
+                log.debug(`<${room_id}>: `, 'Init audio mixer ok. room_id:', room_id, 'amixer_id:', amixerId, 'view:', view);
                 // Save supported info
                 if (mix_views[view]) {
                     mix_views[view].audio = {
@@ -2371,7 +2396,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 enableAVCoordination(view);
                 return 'ok';
             }, function (error_reason) {
-                log.error('Init audio_mixer failed. room_id:', room_id, 'reason:', error_reason);
+                log.error(`<${room_id}>: `, 'Init audio_mixer failed. room_id:', room_id, 'reason:', error_reason);
                 Promise.reject(error_reason);
             });
     };
@@ -2391,7 +2416,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         for (var sub_id in terminals[amixerId].subscribed) {
             var ast_id = terminals[amixerId].subscribed[sub_id].audio;
             inputs.push(ast_id);
-            log.debug('Aborting stream mixing:', ast_id);
+            log.debug(`<${room_id}>: `, 'Aborting stream mixing:', ast_id);
             unmixAudio(ast_id, view);
         }
         terminals[amixerId].subscribed = {};
@@ -2402,7 +2427,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 backup.old_stream_id = st_id;
                 streams[st_id].audio.subscribers.forEach(function(t_id) {
                     backup.for_whom = t_id;
-                    log.debug('Aborting subscription to stream:', st_id, 'by subscriber:', t_id);
+                    log.debug(`<${room_id}>: `, 'Aborting subscription to stream:', st_id, 'by subscriber:', t_id);
                     var i = streams[st_id].audio.subscribers.indexOf(t_id);
                     i > -1 && streams[st_id].audio.subscribers.splice(i, 1);
                     terminals[t_id] && shrinkStream(st_id, terminals[t_id].locality.node);
@@ -2416,13 +2441,13 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         mediaPreference.origin = origin;
         return rpcReq.getWorkerNode(cluster, 'audio', {room: room_id, task: amixerId}, mediaPreference)
             .then(function (locality) {
-                log.debug('Got new audio mixer node:', locality);
+                log.debug(`<${room_id}>: `, 'Got new audio mixer node:', locality);
                 terminals[amixerId].locality = locality;
                 return initAudioMixer(amixerId, view);
             })
             .then(function () {
                 return Promise.all(inputs.map(function (ast_id) {
-                    log.debug('Resuming audio mixer input:', ast_id);
+                    log.debug(`<${room_id}>: `, 'Resuming audio mixer input:', ast_id);
                     return new Promise(function (resolve, reject) {
                         mixAudio(ast_id, view, resolve, reject);
                     });
@@ -2430,16 +2455,16 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             })
             .then(function () {
                 return Promise.all(outputs.map(function (old_st) {
-                    log.debug('Resuming audio mixer output:', old_st, 'view:', view);
+                    log.debug(`<${room_id}>: `, 'Resuming audio mixer output:', old_st, 'view:', view);
                     return new Promise(function (resolve, reject) {
                         getMixedAudio(view, old_st.audio.format, old_st.for_whom, function(stream_id) {
-                            log.debug('Got new stream:', stream_id);
+                            log.debug(`<${room_id}>: `, 'Got new stream:', stream_id);
                             return Promise.all(old_st.spread.map(function(target_node) {
                                     return new Promise(function (res, rej) {
                                         spreadStream(stream_id, target_node.target, 'participant', function() {
                                             res('ok');
                                         }, function (reason) {
-                                            log.warn('Failed in spreading audio stream. reason:', reason);
+                                            log.warn(`<${room_id}>: `, 'Failed in spreading audio stream. reason:', reason);
                                             rej(reason);
                                         });
                                     });
@@ -2459,7 +2484,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                                                             streams[stream_id].audio.subscribers.push(t_id);
                                                             terminals[t_id].subscribed[sub_id].audio = stream_id;
                                                         }, function (reason) {
-                                                            log.warn('Failed in resuming video subscription. reason:', reason);
+                                                            log.warn(`<${room_id}>: `, 'Failed in resuming video subscription. reason:', reason);
                                                         });
                                                 }
                                             }
@@ -2467,11 +2492,11 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                                     });
                                 })
                                 .then(function () {
-                                    log.debug('Resumed audio mixer output ok.');
+                                    log.debug(`<${room_id}>: `, 'Resumed audio mixer output ok.');
                                     resolve('ok');
                                 })
                                 .catch(function (err) {
-                                    log.info('Resumed audio mixer output failed. err:', err);
+                                    log.info(`<${room_id}>: `, 'Resumed audio mixer output failed. err:', err);
                                     reject(err);
                                 });
                         }, reject);
@@ -2479,7 +2504,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 }));
             })
             .catch(function (reason) {
-                log.error('Rebuid audio mixer failed, reason:', (typeof reason === 'string') ? reason : reason.message);
+                log.error(`<${room_id}>: `, 'Rebuid audio mixer failed, reason:', (typeof reason === 'string') ? reason : reason.message);
                 setTimeout(function () {throw Error('Rebuild audio mixer failed.');});
             });
     };
@@ -2504,7 +2529,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 backup.old_stream_id = st_id;
                 outputs.push(backup);
                 streams[st_id].audio.subscribers.forEach(function(t_id) {
-                    log.debug('Aborting subscription to stream :', st_id, 'by subscriber:', t_id);
+                    log.debug(`<${room_id}>: `, 'Aborting subscription to stream :', st_id, 'by subscriber:', t_id);
                     var i = streams[st_id].audio.subscribers.indexOf(t_id);
                     i > -1 && streams[st_id].audio.subscribers.splice(i, 1);
                     terminals[t_id] && shrinkStream(st_id, terminals[t_id].locality.node);
@@ -2517,16 +2542,16 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
         return Promise.resolve('ok')
             .then(function () {
                 return Promise.all(outputs.map(function (old_st) {
-                    log.debug('Resuming audio xcoder output:', old_st);
+                    log.debug(`<${room_id}>: `, 'Resuming audio xcoder output:', old_st);
                     return new Promise(function (resolve, reject) {
                         getTranscodedAudio(old_st.audio.format, input, function(stream_id) {
-                            log.debug('Got new stream:', stream_id);
+                            log.debug(`<${room_id}>: `, 'Got new stream:', stream_id);
                             return Promise.all(old_st.spread.map(function(target_node) {
                                 return new Promise(function (res, rej) {
                                     spreadStream(stream_id, target_node.target, 'participant', function() {
                                         res('ok');
                                     }, function (reason) {
-                                        log.warn('Failed in spreading audio stream. reason:', reason);
+                                        log.warn(`<${room_id}>: `, 'Failed in spreading audio stream. reason:', reason);
                                         rej(reason);
                                     });
                                 });
@@ -2546,7 +2571,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                                                         streams[stream_id].audio.subscribers.push(t_id);
                                                         terminals[t_id].subscribed[sub_id].audio = stream_id;
                                                     }, function (reason) {
-                                                        log.warn('Failed in resuming audio subscription. reason:', reason);
+                                                        log.warn(`<${room_id}>: `, 'Failed in resuming audio subscription. reason:', reason);
                                                     });
                                             }
                                         }
@@ -2554,11 +2579,11 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                                 });
                             })
                             .then(function () {
-                                log.debug('Resumed audio xcoder output ok.');
+                                log.debug(`<${room_id}>: `, 'Resumed audio xcoder output ok.');
                                 resolve('ok');
                             })
                             .catch(function (err) {
-                                log.info('Resumed audio xcoder output failed. err:', err);
+                                log.info(`<${room_id}>: `, 'Resumed audio xcoder output failed. err:', err);
                                 reject(err);
                             });
                         }, reject);
@@ -2566,7 +2591,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 }));
             })
             .catch(function (reason) {
-                log.error('Rebuid audio transcoder failed, reason:', (typeof reason === 'string') ? reason : reason.message);
+                log.error(`<${room_id}>: `, 'Rebuid audio transcoder failed, reason:', (typeof reason === 'string') ? reason : reason.message);
                 setTimeout(function () {throw Error('Rebuild audio transcoder failed.');});
             });
     };
@@ -2574,7 +2599,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     var onVideoFault = function (type, id) {
         for (var terminal_id in terminals) {
             if (isImpacted(terminals[terminal_id].locality, type, id)) {
-                log.debug('Impacted terminal:', terminal_id, 'and its locality:', terminals[terminal_id].locality);
+                log.debug(`<${room_id}>[${terminals[terminal_id].owner}]: `, 'Impacted terminal:', terminal_id, 'and its locality:', terminals[terminal_id].locality);
                 if (terminals[terminal_id].type === 'vmixer') {
                     rebuildVideoMixer(terminal_id);
                 } else if (terminals[terminal_id].type === 'vxcoder') {
@@ -2587,7 +2612,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     var onAudioFault = function (type, id) {
         for (var terminal_id in terminals) {
             if (isImpacted(terminals[terminal_id].locality, type, id)) {
-                log.debug('Impacted terminal:', terminal_id, 'and its locality:', terminals[terminal_id].locality);
+                log.debug(`<${room_id}>[${terminals[terminal_id].owner}]: `, 'Impacted terminal:', terminal_id, 'and its locality:', terminals[terminal_id].locality);
                 if (terminals[terminal_id].type === 'amixer') {
                     rebuildAudioMixer(terminal_id);
                 } else if (terminals[terminal_id].type === 'axcoder') {
@@ -2598,7 +2623,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
     };
 
     that.onFaultDetected = function (purpose, type, id) {
-        log.debug('onFaultDetected, purpose:', purpose, 'type:', type, 'id:', id);
+        log.debug(`<${room_id}>: `, 'onFaultDetected, purpose:', purpose, 'type:', type, 'id:', id);
         if (purpose === 'video') {
             onVideoFault(type, id);
         } else if (purpose === 'audio') {
@@ -2659,7 +2684,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
             } else if (update.firstrid && streams[streamId].video) {
                 streams[streamId].video.rid = update.firstrid;
             }
-            log.debug('updated stream info', JSON.stringify(streams[streamId]));
+            log.debug(`<${room_id}>[${streams[streamId].owner}]: `, 'updated stream info', JSON.stringify(streams[streamId]));
         }
     };
 
@@ -2675,7 +2700,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 }
             });
         } else {
-            log.error('Non-existing stream to draw text:', streamId);
+            log.error(`<${room_id}>: `, 'Non-existing stream to draw text:', streamId);
         }
 
         if (video_processor && terminals[video_processor]) {
@@ -2685,7 +2710,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 'drawText',
                 [textSpec, duration]);
         } else {
-            log.error('No video mixer/transcoder was found for stream:', streamId);
+            log.error(`<${room_id}>: `, 'No video mixer/transcoder was found for stream:', streamId);
         }
     };
 

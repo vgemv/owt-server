@@ -44,7 +44,7 @@ var V11Client = function(clientId, sigConnection, portal) {
   const onError = (method, callback) => {
     return (err) => {
       const err_message = getErrorMessage(err);
-      log.error(method + ' failed:', err_message);
+      log.error(`[${clientId}]: `, method + ' failed:', err_message);
       safeCall(callback, 'error', err_message);
     };
   };

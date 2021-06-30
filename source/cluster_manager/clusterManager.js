@@ -8,6 +8,7 @@ var Scheduler = require('./scheduler').Scheduler;
 
 // Logger
 var log = logger.getLogger('ClusterManager');
+var trace = logger.getLogger('Trace');
 
 var ClusterManager = function (clusterName, selfId, spec) {
     var that = {name: clusterName,
@@ -95,6 +96,10 @@ var ClusterManager = function (clusterName, selfId, spec) {
         log.debug('reportTasksUsage, workerRpcID:', workerRpcID,'taskRpcID:', taskRpcID, 'load:', load);
         workers[workerRpcID] && schedulers[workers[workerRpcID].purpose] && schedulers[workers[workerRpcID].purpose].updateTaskUsage(workerRpcID, taskRpcID, load);
         data_synchronizer && data_synchronizer({type: 'worker_task_usage', payload: {workerRpcID, taskRpcID, load}});
+    };
+
+    var traceLog = function (log) {
+        trace.info(log);
     };
 
     var pickUpTasks = function (worker, tasks) {
@@ -289,6 +294,9 @@ var ClusterManager = function (clusterName, selfId, spec) {
         },
         reportTaskUsage: function (workerRpcID, taskRpcID, load) {
             reportTaskUsage(workerRpcID, taskRpcID, load);
+        },
+        traceLog: function (log) {
+            traceLog(log);
         },
         pickUpTasks: function (worker, tasks) {
             pickUpTasks(worker, tasks);

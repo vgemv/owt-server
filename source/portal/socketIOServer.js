@@ -113,7 +113,7 @@ var Connection = function(spec, socket, reconnectionKey, portal, dock) {
   };
 
   const forceClientLeave = () => {
-    log.debug('forceClientLeave, client_id:', client_id);
+    log.debug(`[${client_id}]: `, 'forceClientLeave, client_id:', client_id);
     if (client_id) {
       const client = dock.getClient(client_id)
       if (client && client.connection === that) {
@@ -178,14 +178,14 @@ var Connection = function(spec, socket, reconnectionKey, portal, dock) {
             client.leave(client_id);
             state = 'initialized';
             safeCall(callback, 'error', 'Participant early left');
-            log.info('Login failed:', 'Participant early left');
+            log.info(`[${client_id}]: `, 'Login failed:', 'Participant early left');
             socket.disconnect();
           }
         }).catch((err) => {
           state = 'initialized';
           const err_message = getErrorMessage(err);
           safeCall(callback, 'error', err_message);
-          log.info('Login failed:', err_message);
+          log.info(`[${client_id}]: `, 'Login failed:', err_message);
           socket.disconnect();
         });
     });
@@ -236,7 +236,7 @@ var Connection = function(spec, socket, reconnectionKey, portal, dock) {
       }).catch((err) => {
         state = 'initialized';
         const err_message = getErrorMessage(err);
-        log.info('Relogin failed:', err_message);
+        log.info(`[${client_id}]: `, 'Relogin failed:', err_message);
         safeCall(callback, 'error', err_message);
         forceClientLeave();
         socket.disconnect();
@@ -268,13 +268,13 @@ var Connection = function(spec, socket, reconnectionKey, portal, dock) {
     });
 
     socket.on('disconnect', function(reason) {
-      log.debug('socket.io disconnected, reason: '+reason);
+      log.debug(`[${client_id}]: `, 'socket.io disconnected, reason: '+reason);
 
       if (state === 'connected' && reconnection.enabled) {
         state = 'waiting_for_reconnecting';
         socket.disconnect(true);
         waiting_for_reconnecting_timer = setTimeout(() => {
-          log.info(client_id + ' waiting for reconnecting timeout.');
+          log.info(`[${client_id}]: `, client_id + ' waiting for reconnecting timeout.');
           forceClientLeave();
         }, spec.reconnectionTimeout * 1000);
       } else {
@@ -290,7 +290,7 @@ var Connection = function(spec, socket, reconnectionKey, portal, dock) {
   };
 
   that.reconnect = () => {
-    log.debug('client reconnect', client_id);
+    log.debug(`[${client_id}]: `, 'client reconnect', client_id);
     if (waiting_for_reconnecting_timer) {
       clearTimeout(waiting_for_reconnecting_timer);
       waiting_for_reconnecting_timer = null;
@@ -305,12 +305,12 @@ var Connection = function(spec, socket, reconnectionKey, portal, dock) {
   };
 
   that.sendMessage = function (event, data) {
-    log.debug('sendMessage, event:', event, 'data:', data);
+    log.debug(`[${client_id}]: `, 'sendMessage, event:', event, 'data:', data);
     if (state === 'connected') {
       try {
         socket.emit(event, data);
       } catch (e) {
-        log.error('socket.emit error:', e.message);
+        log.error(`[${client_id}]: `, 'socket.emit error:', e.message);
       }
     } else {
       pending_messages.push({event: event, data: data});
@@ -318,7 +318,7 @@ var Connection = function(spec, socket, reconnectionKey, portal, dock) {
   };
 
   that.close = (ifLeave) => {
-    log.debug('close it, client_id:', client_id);
+    log.debug(`[${client_id}]: `, 'close it, client_id:', client_id);
     ifLeave && forceClientLeave();
 
     waiting_for_reconnecting_timer && clearTimeout(waiting_for_reconnecting_timer);
@@ -327,7 +327,7 @@ var Connection = function(spec, socket, reconnectionKey, portal, dock) {
     try {
       socket.disconnect();
     } catch (e) {
-      log.error('socket.emit error:', e.message);
+      log.error(`[${client_id}]: `, 'socket.emit error:', e.message);
     }
 
     reconnection.enabled = false;
@@ -405,13 +405,13 @@ var SocketIOServer = function(spec, portal, observer) {
   };
 
   that.onClientJoined = (id, client) => {
-    log.debug('onClientJoined, id:', id, 'client.tokenCode:', client.tokenCode);
+    log.debug(`[${id}]: `, 'onClientJoined, id:', id, 'client.tokenCode:', client.tokenCode);
     clients[id] = client;
     observer.onJoin(client.tokenCode);
   };
 
   that.onClientLeft = (id) => {
-    log.debug('onClientLeft, id:', id);
+    log.debug(`[${id}]: `, 'onClientLeft, id:', id);
     if (clients[id]) {
       observer.onLeave(clients[id].tokenCode);
       delete clients[id];
@@ -444,7 +444,7 @@ var SocketIOServer = function(spec, portal, observer) {
   };
 
   that.notify = function(participantId, event, data) {
-    log.debug('notify participant:', participantId, 'event:', event, 'data:', data);
+    log.debug(`[${participantId}]: `, 'notify participant:', participantId, 'event:', event, 'data:', data);
     if (clients[participantId]) {
       clients[participantId].notify(event, data);
       return Promise.resolve('ok');
@@ -473,7 +473,7 @@ var SocketIOServer = function(spec, portal, observer) {
     } else if (clients[participantId]) {
       clients[participantId].drop();
     } else {
-      log.debug('user not in room', participantId);
+      log.debug(`[${participantId}]: `, 'user not in room', participantId);
     }
   };
 

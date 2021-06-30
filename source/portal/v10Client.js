@@ -31,7 +31,7 @@ var V10Client = function(clientId, sigConnection, portal) {
           convertStream(stream);
         });
       }
-      log.debug('converted join data:', JSON.stringify(data));
+      log.debug(`[${clientId}]: `, 'converted join data:', JSON.stringify(data));
       return data;
     });
   };
@@ -44,7 +44,7 @@ var V10Client = function(clientId, sigConnection, portal) {
       if (data.status === 'update' && data.data.field === '.') {
         convertStream(data.data.value);
       }
-      log.debug('converted stream data:', JSON.stringify(data));
+      log.debug(`[${clientId}]: `, 'converted stream data:', JSON.stringify(data));
     }
     latestNotify(evt, data);
   };

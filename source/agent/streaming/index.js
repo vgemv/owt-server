@@ -114,7 +114,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.publish = function (connectionId, connectionType, options, callback) {
-        log.debug('publish, connectionId:', connectionId, 'connectionType:', connectionType, 'options:', options);
+        log.info('publish, connectionId:', connectionId, 'connectionType:', connectionType, 'options:', options);
         if (connections.getConnection(connectionId)) {
             return callback('callback', {type: 'failed', reason: 'Connection already exists:'+connectionId});
         }
@@ -142,7 +142,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.unpublish = function (connectionId, callback) {
-        log.debug('unpublish, connectionId:', connectionId);
+        log.info('unpublish, connectionId:', connectionId);
         var conn = connections.getConnection(connectionId);
         connections.removeConnection(connectionId).then(function(ok) {
             if (conn && conn.type === 'internal') {
@@ -155,7 +155,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.subscribe = function (connectionId, connectionType, options, callback) {
-        log.debug('subscribe, connectionId:', connectionId, 'connectionType:', connectionType, 'options:', options);
+        log.info('subscribe, connectionId:', connectionId, 'connectionType:', connectionType, 'options:', options);
         if (connections.getConnection(connectionId)) {
             return callback('callback', {type: 'failed', reason: 'Connection already exists:'+connectionId});
         }
@@ -191,7 +191,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
         }
     }
     that.unsubscribe = function (connectionId, callback) {
-        log.debug('unsubscribe, connectionId:', connectionId);
+        log.info('unsubscribe, connectionId:', connectionId);
         var conn = connections.getConnection(connectionId);
         connections.removeConnection(connectionId).then(function(ok) {
             if (conn && conn.type === 'internal') {

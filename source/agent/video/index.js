@@ -284,7 +284,7 @@ function VMixer(rpcClient, clusterIP) {
         connections = {};
 
     var addInput = function (stream_id, codec, options, avatar, on_ok, on_error) {
-        log.debug('add input', stream_id);
+        log.info('add input', stream_id);
         // FIXME: filter profile setting for native layer
         codec = codec.indexOf('h264') > -1 ? 'h264' : codec;
         if (engine) {
@@ -321,7 +321,7 @@ function VMixer(rpcClient, clusterIP) {
     };
 
     var removeInput = function (stream_id) {
-        log.debug('remove input', stream_id);
+        log.info('remove input', stream_id);
         if (inputManager.has(stream_id)) {
             let input = inputManager.remove(stream_id);
             if (input.id >= 0) {
@@ -347,7 +347,7 @@ function VMixer(rpcClient, clusterIP) {
     };
 
     var addOutput = function (codec, resolution, framerate, bitrate, keyFrameInterval, on_ok, on_error) {
-        log.debug('addOutput: codec', codec, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
+        log.info('addOutput: codec', codec, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
         if (engine) {
             var stream_id = Math.random() * 1000000000000000000 + '';
             var dispatcher = new MediaFrameMulticaster();
@@ -430,6 +430,7 @@ function VMixer(rpcClient, clusterIP) {
     };
 
     that.initialize = function (videoConfig, belongTo, layoutcontroller, mixView, callback) {
+        log.info('initEngine, belongTo:', belongTo, 'view:', mixView);
         log.debug('initEngine, videoConfig:', JSON.stringify(videoConfig));
         if(videoConfig.staticParticipants)
             staticParticipants = videoConfig.staticParticipants.map(i => {
@@ -467,7 +468,7 @@ function VMixer(rpcClient, clusterIP) {
             log.warn('layout error:', e);
         });
         layoutProcessor.on('layoutChange', function (layoutSolution) {
-            log.debug('layoutChange', layoutSolution);
+            log.info('layoutChange', layoutSolution);
             if (typeof engine.updateLayoutSolution === 'function') {
                engine.updateLayoutSolution(layoutSolution.filter((obj) => {return obj.input !== undefined;}));
             } else {
@@ -479,7 +480,7 @@ function VMixer(rpcClient, clusterIP) {
             rpcClient.remoteCall(controller, 'onVideoLayoutChange', layoutChangeArgs);
         });
         layoutProcessor.on('sceneChange', function (sceneSolution) {
-            log.debug('sceneChange', sceneSolution);
+            log.info('sceneChange', sceneSolution);
             if (typeof engine.updateSceneSolution === 'function') {
                 
                 if(sceneSolution.bgImageData && typeof(sceneSolution.bgImageData) == "string"){
@@ -526,7 +527,7 @@ function VMixer(rpcClient, clusterIP) {
             engine.updateInputOverlay(idx, i.overlays);
         })
 
-        log.debug('Video engine init OK, supported_codecs:', supported_codecs);
+        log.info('Video engine init OK, supported_codecs:', supported_codecs);
         callback('callback', {codecs: supported_codecs});
     };
 
@@ -586,7 +587,7 @@ function VMixer(rpcClient, clusterIP) {
     };
 
     that.generate = function (codec, resolution, framerate, bitrate, keyFrameInterval, callback) {
-        log.debug('generate, codec:', codec, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
+        log.info('generate, codec:', codec, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
         codec = (codec || supported_codecs.encode[0]).toLowerCase();
         resolution = (resolution === 'unspecified' ? default_resolution : resolution);
         framerate = (framerate === 'unspecified' ? default_framerate : framerate);
@@ -620,7 +621,7 @@ function VMixer(rpcClient, clusterIP) {
     };
 
     that.degenerate = function (stream_id) {
-        log.debug('degenerate, stream_id:', stream_id);
+        log.info('degenerate, stream_id:', stream_id);
         removeOutput(stream_id);
     };
 
@@ -642,7 +643,7 @@ function VMixer(rpcClient, clusterIP) {
     };
 
     that.publish = function (stream_id, stream_type, options, callback) {
-        log.debug('publish, stream_id:', stream_id, 'stream_type:', stream_type, 'options:', options);
+        log.info('publish, stream_id:', stream_id, 'stream_type:', stream_type, 'options:', options);
         if (stream_type !== 'internal') {
             return callback('callback', 'error', 'can not publish a stream to video engine through a non-internal connection');
         }
@@ -665,12 +666,12 @@ function VMixer(rpcClient, clusterIP) {
     };
 
     that.unpublish = function (stream_id) {
-        log.debug('unpublish, stream_id:', stream_id);
+        log.info('unpublish, stream_id:', stream_id);
         removeInput(stream_id);
     };
 
     that.subscribe = function (connectionId, connectionType, options, callback) {
-        log.debug('subscribe, connectionId:', connectionId, 'connectionType:', connectionType, 'options:', options);
+        log.info('subscribe, connectionId:', connectionId, 'connectionType:', connectionType, 'options:', options);
         if (connectionType !== 'internal') {
             return callback('callback', 'error', 'can not subscribe a stream from video engine through a non-internal connection');
         }
@@ -691,7 +692,7 @@ function VMixer(rpcClient, clusterIP) {
     };
 
     that.unsubscribe = function (connectionId) {
-        log.debug('unsubscribe, connectionId:', connectionId);
+        log.info('unsubscribe, connectionId:', connectionId);
         if (connections[connectionId] && connections[connectionId].videoFrom) {
             if (outputs[connections[connectionId].videoFrom]) {
                 outputs[connections[connectionId].videoFrom].dispatcher.removeDestination('video', connections[connectionId].connection.receiver());
@@ -796,7 +797,7 @@ function VMixer(rpcClient, clusterIP) {
     };
 
     that.setInputOverlay = function (inputId, overlays, callback) {
-        log.debug(`setInputOverlay, inputId: ${inputId}, overlays: `, JSON.stringify(overlays));
+        log.info(`setInputOverlay, inputId: ${inputId}, overlays: `, JSON.stringify(overlays));
         if(overlays){
             overlays.forEach(o=>{
                 if(o.imageData && o.imageData.data)
@@ -809,7 +810,7 @@ function VMixer(rpcClient, clusterIP) {
     }
 
     that.dropStaticParticipant = function (id, callback) {
-        log.debug(`dropStaticParticipant, id: ${id}`);
+        log.info(`dropStaticParticipant, id: ${id}`);
         let idx = staticParticipants.findIndex(i => i._id == id);
         if(idx >= 0){
             staticParticipants.splice(idx, 1);
@@ -843,7 +844,7 @@ function VMixer(rpcClient, clusterIP) {
     }
 
     that.updateStaticParticipant = function (id, updated, callback) {
-        log.debug(`updateStaticParticipant, id: ${id}`);
+        log.info(`updateStaticParticipant, id: ${id}`);
         let idx = staticParticipants.findIndex(i => i._id == id);
         let found = staticParticipants[idx];
         if(idx == -1)idx = staticParticipants.length ;
@@ -1020,7 +1021,7 @@ function VTranscoder(rpcClient, clusterIP) {
     };
 
     var addOutput = function (codec, resolution, framerate, bitrate, keyFrameInterval, on_ok, on_error) {
-        log.debug('addOutput: codec', codec, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
+        log.info('addOutput: codec', codec, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
         if (engine) {
             var stream_id = Math.random() * 1000000000000000000 + '';
             var dispatcher = new MediaFrameMulticaster();
@@ -1091,7 +1092,7 @@ function VTranscoder(rpcClient, clusterIP) {
         engine = new VideoTranscoder(config);
 
         motion_factor = (motionFactor || 1.0);
-        log.debug('Video transcoding engine init OK, supported_codecs:', supported_codecs);
+        log.info('Video transcoding engine init OK, supported_codecs:', supported_codecs);
         callback('callback', {codecs: supported_codecs});
     };
 
@@ -1142,7 +1143,7 @@ function VTranscoder(rpcClient, clusterIP) {
     };
 
     that.generate = function (codec, resolution, framerate, bitrate, keyFrameInterval, callback) {
-        log.debug('generate, codec:', codec, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
+        log.info('generate, codec:', codec, 'resolution:', resolution, 'framerate:', framerate, 'bitrate:', bitrate, 'keyFrameInterval:', keyFrameInterval);
         codec = (codec || supported_codecs.encode[0]).toLowerCase();
         resolution = (resolution === 'unspecified' ? default_resolution : resolution);
         framerate = (framerate === 'unspecified' ? default_framerate : framerate);
@@ -1176,11 +1177,12 @@ function VTranscoder(rpcClient, clusterIP) {
     };
 
     that.degenerate = function (stream_id) {
+        log.info('degenerate, stream_id:', stream_id);
         removeOutput(stream_id);
     };
 
     that.publish = function (stream_id, stream_type, options, callback) {
-        log.debug('publish, stream_id:', stream_id, 'stream_type:', stream_type, 'options:', options);
+        log.info('publish, stream_id:', stream_id, 'stream_type:', stream_type, 'options:', options);
         if (stream_type !== 'internal') {
             return callback('callback', 'error', 'can not publish a stream to video engine through a non-internal connection');
         }
@@ -1205,12 +1207,12 @@ function VTranscoder(rpcClient, clusterIP) {
     };
 
     that.unpublish = function (stream_id) {
-        log.debug('unpublish, stream_id:', stream_id);
+        log.info('unpublish, stream_id:', stream_id);
         unsetInput(stream_id);
     };
 
     that.subscribe = function (connectionId, connectionType, options, callback) {
-        log.debug('subscribe, connectionId:', connectionId, 'connectionType:', connectionType, 'options:', options);
+        log.info('subscribe, connectionId:', connectionId, 'connectionType:', connectionType, 'options:', options);
         if (connectionType !== 'internal') {
             return callback('callback', 'error', 'can not subscribe a stream from video engine through a non-internal connection');
         }
@@ -1231,7 +1233,7 @@ function VTranscoder(rpcClient, clusterIP) {
     };
 
     that.unsubscribe = function (connectionId) {
-        log.debug('unsubscribe, connectionId:', connectionId);
+        log.info('unsubscribe, connectionId:', connectionId);
         if (connections[connectionId] && connections[connectionId].videoFrom) {
             if (outputs[connections[connectionId].videoFrom]) {
                 outputs[connections[connectionId].videoFrom].dispatcher.removeDestination('video', connections[connectionId].connection.receiver());

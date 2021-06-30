@@ -64,7 +64,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
             if (engine.addInput(owner, stream_id, codec, conn)) {
                 inputs[stream_id] = {owner: owner,
                                      connection: conn};
-                log.debug('addInput ok, for:', owner, 'codec:', codec, 'options:', options);
+                log.info('addInput ok, for:', owner, 'codec:', codec, 'options:', options);
                 on_ok(stream_id);
             } else {
                 on_error('Failed in adding input to audio-engine.');
@@ -128,7 +128,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
         // and filterred out according to config.
         supported_codecs = ['pcmu', 'opus_48000_2', 'pcma', 'ilbc', 'isac_16000', 'isac_32000', 'g722_16000_1', 'g722_16000_2', 'aac', 'aac_48000_2', 'ac3', 'nellymoser'];
 
-        log.debug('AudioMixer.init OK');
+        log.info('AudioMixer.init OK');
         callback('callback', {codecs: supported_codecs});
     };
 
@@ -172,7 +172,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
 
     that.generate = function (for_whom, codec, callback) {
         codec = codec.toLowerCase();
-        log.debug('generate, for_whom:', for_whom, 'codec:', codec);
+        log.info('generate, for_whom:', for_whom, 'codec:', codec);
         for (var stream_id in outputs) {
             if (outputs[stream_id].for_whom === for_whom && outputs[stream_id].codec === codec) {
                 log.debug('generate, got stream:', stream_id);
@@ -191,6 +191,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.degenerate = function (stream_id) {
+        log.info('degenerate, stream_id:', stream_id);
         removeOutput(stream_id);
     };
 
@@ -207,7 +208,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.publish = function (stream_id, stream_type, options, callback) {
-        log.debug('publish stream:', stream_id, 'stream_type:', stream_type, 'options:', options);
+        log.info('publish stream:', stream_id, 'stream_type:', stream_type, 'options:', options);
         if (stream_type !== 'internal') {
             return callback('callback', 'error', 'can not publish a stream to audio engine through a non-internal connection');
         }
@@ -229,7 +230,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.unpublish = function (stream_id) {
-        log.debug('unpublish, stream_id:', stream_id);
+        log.info('unpublish, stream_id:', stream_id);
         removeInput(stream_id);
     };
 
@@ -257,7 +258,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.subscribe = function (connectionId, connectionType, options, callback) {
-        log.debug('subscribe, connectionId:', connectionId, 'connectionType:', connectionType, 'options:', options);
+        log.info('subscribe, connectionId:', connectionId, 'connectionType:', connectionType, 'options:', options);
         if (connectionType !== 'internal') {
             return callback('callback', 'error', 'can not subscribe a stream from audio engine through a non-internal connection');
         }
@@ -279,7 +280,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.unsubscribe = function (connectionId) {
-        log.debug('unsubscribe, connectionId:', connectionId);
+        log.info('unsubscribe, connectionId:', connectionId);
         if (connections[connectionId] && connections[connectionId].audioFrom) {
             if (outputs[connections[connectionId].audioFrom]) {
                 outputs[connections[connectionId].audioFrom].dispatcher.removeDestination('audio', connections[connectionId].connection.receiver());
@@ -332,7 +333,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
 
     that.init = function (service, config, belongToRoom, controller, mixView, callback) {
         var audioConfig = global.config.audio || {};
-        log.debug('init, audioConfig:', audioConfig);
+        log.info('init, audioConfig:', audioConfig);
 
         if (service === 'mixing') {
             if (typeof config === 'object') {

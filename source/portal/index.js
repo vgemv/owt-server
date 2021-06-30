@@ -153,7 +153,9 @@ var joinCluster = function (on_ok) {
               onLoss: loss,
               onRecovery: recovery,
               loadCollection: {period: config.cluster.report_load_interval,
-                               item: {name: 'cpu'}}
+                               item: {name: 'cpu'}},
+              usageCollection: {period: config.cluster.report_usage_interval,
+                               items: ["cpu", "mem"]},
              };
 
   worker = require('./clusterWorker')(spec);

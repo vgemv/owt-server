@@ -89,7 +89,7 @@ class Operation {
         return simTrack;
       }
     } else {
-      log.error(`Session ${this.id} invalid track: ${trackId} mid ${mid}`);
+      log.error(`<${this.roomId}>: `, `Session ${this.id} invalid track: ${trackId} mid ${mid}`);
     }
     return opTrack;
   }
@@ -112,7 +112,7 @@ class RtcController extends EventEmitter {
    * }
    */
   constructor(roomId, rpcReq, roomRpcId, clusterRpcId) {
-    log.debug(`constructor ${roomId}, ${roomRpcId}, ${clusterRpcId}`);
+    log.debug(`<${roomId}>: `, `constructor ${roomId}, ${roomRpcId}, ${clusterRpcId}`);
     super();
     this.roomId = roomId;
     this.roomRpcId = roomRpcId;
@@ -143,7 +143,7 @@ class RtcController extends EventEmitter {
 
   onTransportProgress(transportId, status) {
     if (!this.transports.has(transportId)) {
-      log.error(`onTransportProgress: Transport ${transportId} does NOT exist`);
+      log.error(`<${this.roomId}>: `, `onTransportProgress: Transport ${transportId} does NOT exist`);
       return;
     }
     const transport = this.transports.get(transportId);
@@ -161,29 +161,29 @@ class RtcController extends EventEmitter {
       this.emit('transport-aborted', transportId, status.reason);
       // Destroy transport
       if (transport.locality) {
-        log.debug(`Destroy transport ${transportId}`);
+        log.debug(`<${this.roomId}>: `, `Destroy transport ${transportId}`);
         this.rpcReq.destroyTransport(transport.locality.node, transportId)
         .catch((e) => {
-          log.debug(`Faild to clean up transport ${transportId}: ${e}`);
+          log.debug(`<${this.roomId}>: `, `Faild to clean up transport ${transportId}: ${e}`);
         }).then(() => {
           const locality = transport.locality;
-          log.debug(`to recycleWorkerNode: ${locality} task:, ${transportId}`);
+          log.debug(`<${this.roomId}>: `, `to recycleWorkerNode: ${locality} task:, ${transportId}`);
           const taskConfig = {room: this.roomId, task: transportId};
           return this.rpcReq.recycleWorkerNode(locality.agent, locality.node, taskConfig)
-        }).catch((e) => log.debug(`Failed to recycleWorkerNode ${locality}`));
+        }).catch((e) => log.debug(`<${this.roomId}>: `, `Failed to recycleWorkerNode ${locality}`));
       } else {
-        log.warn(`No locality for failed transport ${transportId}`);
+        log.warn(`<${this.roomId}>: `, `No locality for failed transport ${transportId}`);
       }
     } else if (status.type === 'offer' || status.type === 'answer' || status.type === 'candidate') {
       this.emit('transport-signaling', transport.owner, transportId, status);
     } else {
-      log.error(`Irrispective status: ${JSON.stringify(status)}`);
+      log.error(`<${this.roomId}>: `, `Irrispective status: ${JSON.stringify(status)}`);
     }
 
   }
 
   onClientTransportSignaling(transportId, signaling) {
-    log.debug(`onClientTransportSignaling ${transportId}, ${JSON.stringify(signaling)}`);
+    log.debug(`<${this.roomId}>: `, `onClientTransportSignaling ${transportId}, ${JSON.stringify(signaling)}`);
     if (!this.transports.has(transportId)) {
       return Promise.reject(`Transport ${transportId} does NOT exist`);
     }
@@ -192,7 +192,7 @@ class RtcController extends EventEmitter {
       return Promise.reject(`Transport ${transportId} locality is NOT ready`);
     }
     return this.rpcReq.onTransportSignaling(locality.node, transportId, signaling)
-      .catch(e => log.warn(`Trnasport signaling RPC failed ${e}`));
+      .catch(e => log.warn(`<${this.roomId}>: `, `Trnasport signaling RPC failed ${e}`));
   };
 
   onClientSessionSignaling(sessionId, signaling) {
@@ -205,11 +205,11 @@ class RtcController extends EventEmitter {
   };
 
   onTrackUpdate(transportId, info) {
-    log.debug(`onTrackUpdate ${transportId}, ${JSON.stringify(info)}`);
+    log.debug(`<${this.roomId}>: `, `onTrackUpdate ${transportId}, ${JSON.stringify(info)}`);
     if (info.type === 'track-added') {
       // {type, trackId, mediaType, mediaFormat, direction, operationId, mid, rid, active}
       if (this.tracks.has(info.trackId)) {
-        log.error(`onTrackUpdate: duplicate track ID ${info.trackId}`);
+        log.error(`<${this.roomId}>: `, `onTrackUpdate: duplicate track ID ${info.trackId}`);
       } else {
         if (this.operations.has(info.operationId)) {
           const operation = this.operations.get(info.operationId);
@@ -218,16 +218,16 @@ class RtcController extends EventEmitter {
             this.tracks.set(info.trackId, newTrack);
           }
           if (operation.state === COMPLETED) {
-            log.warn('Unexpected order for track-added event');
+            log.warn(`<${this.roomId}>: `, 'Unexpected order for track-added event');
             this.emit('session-updated', info.operationId, {type: 'add', data: info});
           }
         } else {
-          log.warn(`Operation ${info.operationId} deleted for track-added`);
+          log.warn(`<${this.roomId}>: `, `Operation ${info.operationId} deleted for track-added`);
         }
       }
     } else if (info.type === 'track-removed') {
       if (!this.tracks.has(info.trackId)) {
-        log.error(`onTrackUpdate: non-exist track ID ${info.trackId}`);
+        log.error(`<${this.roomId}>: `, `onTrackUpdate: non-exist track ID ${info.trackId}`);
       } else {
         const operationId = this.tracks.get(info.trackId).operationId;
         const operation = this.operations.get(operationId);
@@ -255,7 +255,7 @@ class RtcController extends EventEmitter {
   async _createTransportIfNeeded(ownerId, sessionId, origin, tId) {
     if (!this.transports.has(tId)) {
       const taskConfig = {room: this.roomId, task: tId};
-      log.debug(`getWorkerNode ${this.clusterRpcId}, ${taskConfig}, ${origin}`);
+      log.debug(`<${this.roomId}>: `, `getWorkerNode ${this.clusterRpcId}, ${taskConfig}, ${origin}`);
       const locality = await this.rpcReq.getWorkerNode(
           this.clusterRpcId, 'webrtc', taskConfig, origin);
       this.transports.set(tId, new Transport(tId, ownerId, origin));
@@ -267,7 +267,7 @@ class RtcController extends EventEmitter {
   // tracks = [ {mid, type, formatPreference, from} ]
   // Return Promise
   initiate(ownerId, sessionId, direction, origin, {transportId, tracks, legacy, attributes}) {
-    log.debug(`initiate, ownerId:${ownerId}, sessionId:${sessionId}, origin:${origin}, ` +
+    log.debug(`<${this.roomId}>: `, `initiate, ownerId:${ownerId}, sessionId:${sessionId}, origin:${origin}, ` +
       `transportId:${transportId}, tracks:${JSON.stringify(tracks)}, legacy:${legacy}, attributes:${attributes}`);
 
     return this._createTransportIfNeeded(ownerId, sessionId, origin, transportId)
@@ -279,28 +279,30 @@ class RtcController extends EventEmitter {
 
       // Add operation (publish/subscribe)
       if (this.operations.has(sessionId)) {
-        log.debug(`operation exists:${sessionId}`);
+        log.debug(`<${this.roomId}>: `, `operation exists:${sessionId}`);
         return Promise.reject(`operation exists:${sessionId}`);
       }
       const op = new Operation(sessionId, transport, direction, tracks, legacy, attributes);
       this.operations.set(sessionId, op);
       // Return promise for this operation
       const options = {transportId, tracks, controller: this.roomRpcId, owner: ownerId};
+      this.rpcReq.traceLog(this.clusterRpcId, `[${ownerId}]{${locality.node}}: webrtc start ${direction}`);
       return this.rpcReq.initiate(locality.node, sessionId, 'webrtc', direction, options);
     });
   }
 
   // Return Promise
   terminate(sessionId, direction, reason) {
-    log.debug(`terminate, sessionId: ${sessionId} direction: ${direction}, ${reason}`);
+    log.debug(`<${this.roomId}>: `, `terminate, sessionId: ${sessionId} direction: ${direction}, ${reason}`);
 
     if (!this.operations.has(sessionId)) {
-      log.debug(`operation does NOT exist:${sessionId}`);
+      log.debug(`<${this.roomId}>: `, `operation does NOT exist:${sessionId}`);
       return Promise.reject(`operation does NOT exist:${sessionId}`);
     }
     const operation = this.operations.get(sessionId);
     const transport = this.transports.get(operation.transportId);
     const locality = transport.locality;
+    this.rpcReq.traceLog(this.clusterRpcId, `[${transport.owner}]{${locality.node}}: webrtc stop ${direction}`);
     return this.rpcReq.terminate(locality.node, sessionId, direction).then(() => {
       if (this.operations.has(sessionId)) {
         const owner = transport.owner;
@@ -310,12 +312,12 @@ class RtcController extends EventEmitter {
       }
     })
     .catch(reason => {
-      log.debug(`Operation terminate failed ${operation}, ${reason}`);
+      log.debug(`<${this.roomId}>: `, `Operation terminate failed ${operation}, ${reason}`);
     });
   };
 
   terminateByOwner(ownerId) {
-    log.debug(`terminateByOwner ${ownerId}`);
+    log.debug(`<${this.roomId}>: `, `terminateByOwner ${ownerId}`);
     const terminations = [];
     this.operations.forEach((operation, operationId) => {
       if (operation.transport.owner === ownerId) {
@@ -339,7 +341,7 @@ class RtcController extends EventEmitter {
   };
 
   terminateByLocality(type, id) {
-    log.debug(`terminateByLocality ${type} ${id}`);
+    log.debug(`<${this.roomId}>: `, `terminateByLocality ${type} ${id}`);
     const terminations = [];
     const transports = new Set();
     this.operations.forEach((operation, operationId) => {
@@ -366,7 +368,7 @@ class RtcController extends EventEmitter {
   };
 
   destroy() {
-    log.debug(`destroy`);
+    log.debug(`<${this.roomId}>: `, `destroy`);
     // Destroy all transports
     this.transports.forEach((transport, transportId) => {
       const status = {type: 'failed', reason: 'Owner leave'};
@@ -376,10 +378,10 @@ class RtcController extends EventEmitter {
 
 
   getMediaStats(sessionId, tracks) {
-    log.debug('getMediaStats, sessionId:', sessionId);
+    log.debug(`<${this.roomId}>: `, 'getMediaStats, sessionId:', sessionId);
 
     if (!this.operations.has(sessionId)) {
-      log.debug(`operation does NOT exist:${sessionId}`);
+      log.debug(`<${this.roomId}>: `, `operation does NOT exist:${sessionId}`);
       return Promise.reject(`operation does NOT exist:${sessionId}`);
     }
 
@@ -388,13 +390,13 @@ class RtcController extends EventEmitter {
     const locality = transport.locality;
     return this.rpcReq.getMediaStats(
         locality.node, sessionId, tracks)
-            .catch(reason => log.debug(`getMediaStats failed ${sessionId}`));;
+            .catch(reason => log.debug(`<${this.roomId}>: `, `getMediaStats failed ${sessionId}`));;
   };
 
   setMute(sessionId, tracks, muted) {
-    log.debug(`setMute, sessionId: ${sessionId} tracks: ${tracks} muted: ${muted}`);
+    log.debug(`<${this.roomId}>: `, `setMute, sessionId: ${sessionId} tracks: ${tracks} muted: ${muted}`);
     if (!this.operations.has(sessionId)) {
-      log.debug(`operation does NOT exist:${sessionId}`);
+      log.debug(`<${this.roomId}>: `, `operation does NOT exist:${sessionId}`);
       return Promise.reject(`operation does NOT exist:${sessionId}`);
     }
     const operation = this.operations.get(sessionId);
@@ -403,7 +405,7 @@ class RtcController extends EventEmitter {
     const onOff = muted ? 'off' : 'on';
     return this.rpcReq.mediaOnOff(
         locality.node, sessionId, tracks, operation.direction, onOff)
-            .catch(reason => log.debug(`setMute failed ${sessionId}`));;
+            .catch(reason => log.debug(`<${this.roomId}>: `, `setMute failed ${sessionId}`));;
   };
 
 }

@@ -73,7 +73,7 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.join = function(participantId, token) {
-    log.debug('participant[', participantId, '] join with token:', JSON.stringify(token));
+    log.info(`[${participantId}]: `, 'participant[', participantId, '] join with token:', JSON.stringify(token));
     if (participants[participantId]) {
       return Promise.reject('Participant already in room');
     }
@@ -98,11 +98,11 @@ var Portal = function(spec, rpcReq) {
 
     return validateToken(token)
       .then(function(validToken) {
-        log.debug('token validation ok.');
+        log.debug(`[${participantId}]: `,'token validation ok.');
         return dataAccess.token.delete(validToken.tokenId);
       })
       .then(function(deleteTokenResult) {
-        log.debug('login ok.', deleteTokenResult);
+        log.debug(`[${participantId}]: `,'login ok.', deleteTokenResult);
         tokenCode = deleteTokenResult.code;
         userInfo = deleteTokenResult.user;
         role = deleteTokenResult.role;
@@ -111,12 +111,13 @@ var Portal = function(spec, rpcReq) {
         return rpcReq.getController(cluster_name, room_id);
       })
       .then(function(controller) {
-        log.debug('got controller:', controller);
+        log.debug(`[${participantId}]: `,'got controller:', controller);
+        rpcReq.traceLog(cluster_name, `[${participantId}]{${controller}}: join conference`);
         room_controller = controller;
         return rpcReq.join(controller, room_id, {id: participantId, user: userInfo, role: role, portal: self_rpc_id, origin: origin});
       })
       .then(function(joinResult) {
-        log.debug('join ok, result:', joinResult);
+        log.debug(`[${participantId}]: `,'join ok, result:', joinResult);
         participants[participantId] = {
           in_room: room_id,
           controller: room_controller
@@ -141,11 +142,12 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.leave = function(participantId) {
-    log.debug('participant leave:', participantId);
+    log.info(`[${participantId}]: `,'participant leave:', participantId);
     if (participants[participantId]) {
+      rpcReq.traceLog(cluster_name, `[${participantId}]{${participants[participantId].controller}}: leave conference`);
       rpcReq.leave(participants[participantId].controller, participantId)
         .catch(function(reason) {
-          log.info('Failed in leaving, ', reason.message ? reason.message : reason);
+          log.info(`[${participantId}]: `,'Failed in leaving, ', reason.message ? reason.message : reason);
         });
       delete participants[participantId];
       return Promise.resolve('ok');
@@ -155,7 +157,7 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.publish = function(participantId, streamId, pubInfo) {
-    log.debug('publish, participantId:', participantId, 'streamId:', streamId, 'pubInfo:', pubInfo);
+    log.info(`[${participantId}]: `,'publish, participantId:', participantId, 'streamId:', streamId, 'pubInfo:', pubInfo);
     if (participants[participantId] === undefined) {
       return Promise.reject('Participant has NOT joined');
     }
@@ -167,7 +169,7 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.unpublish = function(participantId, streamId) {
-    log.debug('unpublish, participantId:', participantId, 'streamId:', streamId);
+    log.info(`[${participantId}]: `,'unpublish, participantId:', participantId, 'streamId:', streamId);
     if (participants[participantId] === undefined) {
       return Promise.reject('Participant has NOT joined');
     }
@@ -178,7 +180,7 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.streamControl = function(participantId, streamId, commandInfo) {
-    log.debug('streamControl, participantId:', participantId, 'streamId:', streamId, 'command:', commandInfo);
+    log.info(`[${participantId}]: `,'streamControl, participantId:', participantId, 'streamId:', streamId, 'command:', commandInfo);
     if (participants[participantId] === undefined) {
       return Promise.reject('Participant has NOT joined');
     }
@@ -190,7 +192,7 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.subscribe = function(participantId, subscriptionId, subDesc) {
-    log.debug('subscribe, participantId:', participantId, 'subscriptionId:', subscriptionId, 'subDesc:', subDesc);
+    log.info(`[${participantId}]: `,'subscribe, participantId:', participantId, 'subscriptionId:', subscriptionId, 'subDesc:', subDesc);
     if (participants[participantId] === undefined) {
       return Promise.reject('Participant has NOT joined');
     }
@@ -202,7 +204,7 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.unsubscribe = function(participantId, subscriptionId) {
-    log.debug('unsubscribe, participantId:', participantId, 'subscriptionId:', subscriptionId);
+    log.info(`[${participantId}]: `,'unsubscribe, participantId:', participantId, 'subscriptionId:', subscriptionId);
     if (participants[participantId] === undefined) {
       return Promise.reject('Participant has NOT joined');
     }
@@ -211,7 +213,7 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.subscriptionControl = function(participantId, subscriptionId, commandInfo) {
-    log.debug('subscriptionControl, participantId:', participantId, 'subscriptionId:', subscriptionId, 'command:', commandInfo);
+    log.info(`[${participantId}]: `,'subscriptionControl, participantId:', participantId, 'subscriptionId:', subscriptionId, 'command:', commandInfo);
     if (participants[participantId] === undefined) {
       return Promise.reject('Participant has NOT joined');
     }
@@ -223,7 +225,8 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.onSessionSignaling = function(participantId, sessionId, signaling) {
-    log.debug('onSessionSignaling, participantId:', participantId, 'sessionId:', sessionId, 'signaling:', signaling);
+    log.info(`[${participantId}]: `,'onSessionSignaling, participantId:', participantId, 'sessionId:', sessionId, 'signalingType:', signaling&&signaling.type);
+    log.debug(`[${participantId}]: `,'onSessionSignaling, participantId:', participantId, 'sessionId:', sessionId, 'signaling:', signaling);
 
     var participant = participants[participantId];
     if (participants[participantId] === undefined) {
@@ -234,7 +237,7 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.text = function(participantId, to, msg) {
-    log.debug('text, participantId:', participantId, 'to:', to, 'msg:', msg);
+    log.debug(`[${participantId}]: `,'text, participantId:', participantId, 'to:', to, 'msg:', msg);
     if (participants[participantId] === undefined) {
       return Promise.reject('Participant has NOT joined');
     }

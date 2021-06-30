@@ -90,6 +90,10 @@ var RpcRequest = function(rpcChannel) {
     return rpcChannel.makeRPC(sipNode, 'endCall', [sipCallId]);
   };
 
+  that.traceLog = function(clusterManager, log) {
+    return rpcChannel.makeRPC(clusterManager, 'traceLog', [log]);
+  };
+
   return that;
 };
 

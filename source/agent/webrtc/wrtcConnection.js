@@ -140,7 +140,7 @@ class WrtcStream extends EventEmitter {
     } else if (track === 'video' && this.videoFrameConstructor) {
       this.videoFrameConstructor.addDestination(dest);
     } else {
-      log.warn('Wrong track:', track);
+      log.warn(`[${owner}]: `, 'Wrong track:', track);
     }
   }
 
@@ -150,7 +150,7 @@ class WrtcStream extends EventEmitter {
     } else if (track === 'video' && this.videoFrameConstructor) {
       this.videoFrameConstructor.removeDestination(dest);
     } else {
-      log.warn('Wrong track:' + track);
+      log.warn(`[${owner}]: `, 'Wrong track:' + track);
     }
   }
 
@@ -161,7 +161,7 @@ class WrtcStream extends EventEmitter {
     } else if (track === 'video') {
       dest = this.videoFramePacketizer;
     } else {
-      log.error('receiver error');
+      log.error(`[${owner}]: `, 'receiver error');
     }
     return dest;
   }
@@ -258,15 +258,17 @@ module.exports = function (spec, on_status, on_track) {
   // operationId => msid
   var msidMap = new Map();
 
+  that.owner = owner;
+
   that.addTrackOperation = function (operationId, mid, type, sdpDirection, formatPreference) {
     var ret = false;
     if (!operationMap.has(mid)) {
-      log.debug(`MID ${mid} for operation ${operationId} add`);
+      log.debug(`[${owner}]: `, `MID ${mid} for operation ${operationId} add`);
       const enabled = true;
       operationMap.set(mid, {operationId, type, sdpDirection, formatPreference, enabled});
       ret = true;
     } else {
-      log.warn(`MID ${mid} has mapped operation ${operationMap.get(mid).operationId}`);
+      log.warn(`[${owner}]: `, `MID ${mid} has mapped operation ${operationMap.get(mid).operationId}`);
     }
     return ret;
   };
@@ -275,7 +277,7 @@ module.exports = function (spec, on_status, on_track) {
     var ret = false;
     operationMap.forEach((op, mid) => {
       if (op.operationId === operationId) {
-        log.debug(`MID ${mid} for operation ${operationId} remove`);
+        log.debug(`[${owner}]: `, `MID ${mid} for operation ${operationId} remove`);
         op.enabled = false;
         destroyTransport(mid);
         ret = true;
@@ -303,7 +305,7 @@ module.exports = function (spec, on_status, on_track) {
         processAnswer(evt.sdp);
 
         const message = localSdp.toString();
-        log.debug('Answer SDP', message);
+        log.info(`[${owner}]: `, 'Answer SDP', message);
         on_status({type: 'answer', sdp: message});
 
       } else if (evt.type === 'candidate') {
@@ -316,11 +318,11 @@ module.exports = function (spec, on_status, on_track) {
         on_status({type: 'candidate', candidate: message});
 
       } else if (evt.type === 'failed') {
-        log.warn('ICE failed, ', status, wrtc.id);
+        log.warn(`[${owner}]: `, 'ICE failed, ', status, wrtc.id);
         on_status({type: 'failed', reason: 'Ice procedure failed.'});
 
       } else if (evt.type === 'ready') {
-        log.debug('Connection ready, ', wrtc.wrtcId);
+        log.info(`[${owner}]: `, 'Connection ready, ', wrtc.wrtcId);
         on_status({
           type: 'ready'
         });
@@ -375,7 +377,7 @@ module.exports = function (spec, on_status, on_track) {
             rid: rid
           });
         } else {
-          log.warn(`Conflict trackId ${trackId} for ${wrtcId}`);
+          log.warn(`[${owner}]: `, `Conflict trackId ${trackId} for ${wrtcId}`);
         }
       });
     } else {
@@ -387,7 +389,7 @@ module.exports = function (spec, on_status, on_track) {
           const mtype = localSdp.mediaType(mid);
           const ssrc = trackMap.get(mid).ssrc(mtype);
           if (ssrc) {
-            log.debug(`Add ssrc ${ssrc} to ${mtype} in SDP for ${wrtcId}`);
+            log.debug(`[${owner}]: `, `Add ssrc ${ssrc} to ${mtype} in SDP for ${wrtcId}`);
             const opId = opSettings.operationId;
             let msid = msidMap.get(opId);
             if (msid) {
@@ -407,7 +409,7 @@ module.exports = function (spec, on_status, on_track) {
           mid: mid
         });
       } else {
-        log.warn(`Conflict trackId ${mid} for ${wrtcId}`);
+        log.warn(`[${owner}]: `, `Conflict trackId ${mid} for ${wrtcId}`);
       }
     }
 
@@ -428,7 +430,7 @@ module.exports = function (spec, on_status, on_track) {
           trackMap.delete(trackId);
           on_track({type: 'track-removed', trackId});
         } else {
-          log.info(`destroyTransport: No trackId ${trackId} for ${wrtcId}`);
+          log.info(`[${owner}]: `, `destroyTransport: No trackId ${trackId} for ${wrtcId}`);
         }
       });
     } else {
@@ -438,7 +440,7 @@ module.exports = function (spec, on_status, on_track) {
         trackMap.delete(mid);
         on_track({type: 'track-removed', trackId: mid});
       } else {
-        log.info(`destroyTransport: No trackId ${mid} for ${wrtcId}`);
+        log.info(`[${owner}]: `, `destroyTransport: No trackId ${mid} for ${wrtcId}`);
       }
     }
   };
@@ -446,21 +448,21 @@ module.exports = function (spec, on_status, on_track) {
   const processOfferMedia = function (mid) {
     // Check Media MID with saved operation
     if (!operationMap.has(mid)) {
-      log.warn(`MID ${mid} in offer has no mapped operations (disabled)`);
+      log.warn(`[${owner}]: `, `MID ${mid} in offer has no mapped operations (disabled)`);
       remoteSdp.closeMedia(mid);
       localSdp.closeMedia(mid);
       return;
     }
     if (operationMap.get(mid).sdpDirection !== remoteSdp.mediaDirection(mid)) {
-      log.warn(`MID ${mid} in offer has conflict direction with operation`);
+      log.warn(`[${owner}]: `, `MID ${mid} in offer has conflict direction with operation`);
       return;
     }
     if (operationMap.get(mid).type !== remoteSdp.mediaType(mid)) {
-      log.warn(`MID ${mid} in offer has conflict media type with operation`);
+      log.warn(`[${owner}]: `, `MID ${mid} in offer has conflict media type with operation`);
       return;
     }
     if (operationMap.get(mid).enabled && remoteSdp.isMediaClosed(mid)) {
-      log.warn(`MID ${mid} in offer has conflict closed state (disabled)`);
+      log.warn(`[${owner}]: `, `MID ${mid} in offer has conflict closed state (disabled)`);
       operationMap.get(mid).enabled = false;
       return;
     }
@@ -521,7 +523,7 @@ module.exports = function (spec, on_status, on_track) {
           removedMids.push(cmid);
         } else {
           // Treat as no change
-          log.debug(`MID ${cmid} no change`);
+          log.debug(`[${owner}]: `, `MID ${cmid} no change`);
         }
       }
 
@@ -551,7 +553,7 @@ module.exports = function (spec, on_status, on_track) {
       localSdp.setBundleMids(laterSdp.bundleMids());
       // Produce answer
       const message = localSdp.toString();
-      log.debug('Answer SDP', message);
+      log.debug(`[${owner}]: `, 'Answer SDP', message);
       on_status({type: 'answer', sdp: message});
     }
   };
@@ -572,7 +574,7 @@ module.exports = function (spec, on_status, on_track) {
         localSdp.setCredentials(tempSdp.getCredentials(tempMid));
         localSdp.setCandidates(tempSdp.getCandidates(tempMid));
       } else {
-        log.warn('No mid in answer', wrtcId);
+        log.warn(`[${owner}]: `, 'No mid in answer', wrtcId);
       }
 
     }
@@ -581,7 +583,7 @@ module.exports = function (spec, on_status, on_track) {
   that.close = function () {
     if (wrtc) {
       if (wrtc.getNumMediaStreams() > 0) {
-        log.warn('MediaStream remaining when closing');
+        log.warn(`[${owner}]: `, 'MediaStream remaining when closing');
         trackMap.forEach(track => {
           track.close();
         });
@@ -595,9 +597,10 @@ module.exports = function (spec, on_status, on_track) {
   that.onSignalling = function (msg, operationId) {
     var processSignalling = function () {
       if (msg.type === 'offer') {
-        log.debug('on offer:', msg.sdp);
+        log.info(`[${owner}]: `, 'on offer:', msg.sdp);
         processOffer(msg.sdp);
       } else if (msg.type === 'candidate') {
+        log.info(`[${owner}]: `, 'on candidate:', msg.candidate);
         wrtc.addRemoteCandidate(msg.candidate);
       } else if (msg.type === 'removed-candidates') {
         wrtc.removeRemoteCandidates(msg.candidates);
@@ -608,7 +611,7 @@ module.exports = function (spec, on_status, on_track) {
       processSignalling();
     } else {
       // should not reach here
-      log.error('wrtc is not ready');
+      log.error(`[${owner}]: `, 'wrtc is not ready');
     }
   };
 
@@ -619,7 +622,7 @@ module.exports = function (spec, on_status, on_track) {
       ipAddresses.push(i.ip_address);
     }
   });
-  wrtc = new Connection(wrtcId, threadPool, ioThreadPool, { ipAddresses });
+  wrtc = new Connection(wrtcId, threadPool, ioThreadPool, { ipAddresses, owner });
   // wrtc.addMediaStream(wrtcId, {label: ''}, direction === 'in');
 
   initWebRtcConnection(wrtc);

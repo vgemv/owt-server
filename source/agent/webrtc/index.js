@@ -8,8 +8,9 @@ var path = require('path');
 var WrtcConnection = require('./wrtcConnection');
 var Connections = require('./connections');
 var InternalConnectionFactory = require('./InternalConnectionFactory');
-var usageCollector = require("./loadCollector").UsageCollector;
+var usageCollector = require("../loadCollector").UsageCollector;
 var logger = require('../logger').logger;
+var SdpInfo = require("./sdpInfo").SdpInfo;
 
 // Logger
 var log = logger.getLogger('WebrtcNode');
@@ -44,6 +45,18 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
         period: global.config.cluster.worker.usage.period, 
         items: global.config.cluster.worker.usage.items, 
         onLoad: (usage)=>{
+            [...mediaTracks.entries()].forEach(i=>{
+                let owner = i[1].owner;
+                let latestSdp = i[1].wrtc.latestSdp;
+                let sdp = new SdpInfo(latestSdp);
+                
+                sdp.mids().forEach(i=>{
+                    sdp.getCandidates(i).forEach(i=>{
+                        let key = `${i.ip}:${i.port}`;
+                        usage.net[key] && (usage.net[key].owner = owner);
+                    });
+                });
+            });
             rpcClient.remoteCast(global.config.cluster.name, 'reportTaskUsage', [parentRpcId, selfRpcId, usage]);
         }
     });
@@ -64,7 +77,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
         rpcClient.remoteCast(controller, 'onTrackUpdate', [transportId, updateInfo]);
     };
 
-    var handleTrackInfo = function (transportId, trackInfo, controller) {
+    var handleTrackInfo = function (transportId, trackInfo, controller, owner) {
         var publicTrackId;
         var updateInfo;
         if (trackInfo.type === 'track-added') {
@@ -72,13 +85,13 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
             const track = trackInfo.track;
             publicTrackId = transportId + '-' + track.id;
             if (mediaTracks.has(publicTrackId)) {
-                log.error('Conflict public track id:', publicTrackId, transportId, track.id);
+                log.error(`[${owner}]: `, 'Conflict public track id:', publicTrackId, transportId, track.id);
                 return;
             }
             mediaTracks.set(publicTrackId, track);
             mappingPublicId.get(transportId).set(track.id, publicTrackId);
             connections.addConnection(publicTrackId, 'webrtc', controller, track, track.direction)
-            .catch(e => log.warn('Unexpected error during track add:', e));
+            .catch(e => log.warn(`[${owner}]: `, 'Unexpected error during track add:', e));
 
             // Bind media-update handler
             track.on('media-update', (jsonUpdate) => {
@@ -97,13 +110,13 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
                 rid: trackInfo.rid,
                 active: true,
             };
-            log.debug('notifyTrackUpdate', controller, publicTrackId, updateInfo);
+            log.debug(`[${owner}]: `, 'notifyTrackUpdate', controller, publicTrackId, updateInfo);
             notifyTrackUpdate(controller, transportId, updateInfo);
 
         } else if (trackInfo.type === 'track-removed') {
             publicTrackId = mappingPublicId.get(transportId).get(trackInfo.trackId);
             if (!mediaTracks.has(publicTrackId)) {
-                log.error('Non-exist public track id:', publicTrackId, transportId, trackInfo.trackId);
+                log.error(`[${owner}]: `, 'Non-exist public track id:', publicTrackId, transportId, trackInfo.trackId);
                 return;
             }
             connections.removeConnection(publicTrackId)
@@ -112,7 +125,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
                 mediaTracks.delete(publicTrackId);
                 mappingPublicId.get(transportId).delete(trackInfo.trackId);
             })
-            .catch(e => log.warn('Unexpected error during track remove:', e));
+            .catch(e => log.warn(`[${owner}]: `, 'Unexpected error during track remove:', e));
 
             // Notify controller
             updateInfo = {
@@ -132,7 +145,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
 
     var createWebRTCConnection = function (transportId, controller, owner) {
         if (peerConnections.has(transportId)) {
-            log.debug('PeerConnection already created:', transportId);
+            log.debug(`[${owner}]: `, 'PeerConnection already created:', transportId);
             return peerConnections.get(transportId);
         }
         var connection = new WrtcConnection({
@@ -144,7 +157,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
         }, function onTransportStatus(status) {
             notifyTransportStatus(controller, transportId, status);
         }, function onTrack(trackInfo) {
-            handleTrackInfo(transportId, trackInfo, controller);
+            handleTrackInfo(transportId, trackInfo, controller, owner);
         });
 
         peerConnections.set(transportId, connection);
@@ -183,14 +196,15 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.destroyTransport = function (transportId, callback) {
-        log.debug('destroyTransport, transportId:', transportId);
+        let owner = (peerConnections.get(transportId)||{}).owner;
+        log.debug(`[${owner}]: `, 'destroyTransport, transportId:', transportId);
         if (!peerConnections.has(transportId)) {
             callback('callback', 'error', 'Transport does not exists: ' + transportId);
             return;
         }
         mappingPublicId.get(transportId).forEach((publicTrackId, trackId) => {
             connections.removeConnection(publicTrackId)
-            .catch(e => log.warn('Unexpected error during track destroy:', e));
+            .catch(e => log.warn(`[${owner}]: `, 'Unexpected error during track destroy:', e));
             mediaTracks.get(publicTrackId).close();
             mediaTracks.delete(publicTrackId);
             // Notify controller
@@ -226,7 +240,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     // functions: publish, unpublish, subscribe, unsubscribe, linkup, cutoff
     // options = { transportId, tracks = [{mid, type, formatPreference}], controller, owner}
     that.publish = function (operationId, connectionType, options, callback) {
-        log.debug('publish, operationId:', operationId, 'connectionType:', connectionType, 'options:', options);
+        log.info(`[${options.owner}]: `, 'publish, operationId:', operationId, 'connectionType:', connectionType, 'options:', options);
         if (connections.getConnection(operationId)) {
             return callback('callback', {type: 'failed', reason: 'Connection already exists:'+operationId});
         }
@@ -251,18 +265,18 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
             mappingTransports.set(operationId, options.transportId);
             callback('callback', 'ok');
         } else {
-            log.error('Connection type invalid:' + connectionType);
+            log.error(`[${options.owner}]: `, 'Connection type invalid:' + connectionType);
         }
 
         if (!conn) {
-            log.error('Create connection failed', operationId, connectionType);
+            log.error(`[${options.owner}]: `, 'Create connection failed', operationId, connectionType);
             callback('callback', {type: 'failed', reason: 'Create Connection failed'});
         }
     };
 
     that.unpublish = function (operationId, callback) {
-        log.debug('unpublish, operationId:', operationId);
         var conn = getWebRTCConnection(operationId);
+        log.info(`[${conn.owner}]: `, 'unpublish, operationId:', operationId);
         if (conn) {
             // For 'webrtc'
             conn.removeTrackOperation(operationId);
@@ -279,7 +293,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.subscribe = function (operationId, connectionType, options, callback) {
-        log.debug('subscribe, operationId:', operationId, 'connectionType:', connectionType, 'options:', options);
+        log.info(`[${options.owner}]: `, 'subscribe, operationId:', operationId, 'connectionType:', connectionType, 'options:', options);
         if (connections.getConnection(operationId)) {
             return callback('callback', {type: 'failed', reason: 'Connection already exists:'+operationId});
         }
@@ -304,18 +318,18 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
             mappingTransports.set(operationId, options.transportId);
             callback('callback', 'ok');
         } else {
-            log.error('Connection type invalid:' + connectionType);
+            log.error(`[${options.owner}]: `, 'Connection type invalid:' + connectionType);
         }
 
         if (!conn) {
-            log.error('Create connection failed', operationId, connectionType);
+            log.error(`[${options.owner}]: `, 'Create connection failed', operationId, connectionType);
             callback('callback', {type: 'failed', reason: 'Create Connection failed'});
         }
     };
 
     that.unsubscribe = function (operationId, callback) {
-        log.debug('unsubscribe, operationId:', operationId);
         var conn = getWebRTCConnection(operationId);
+        log.info(`[${(conn||{}).owner}]: `, 'unsubscribe, operationId:', operationId);
         if (conn) {
             // For 'webrtc'
             conn.removeTrackOperation(operationId);
@@ -332,18 +346,20 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.linkup = function (connectionId, audioFrom, videoFrom, dataFrom, callback) {
-        log.debug('linkup, connectionId:', connectionId, 'audioFrom:', audioFrom, 'videoFrom:', videoFrom, 'dataFrom:', dataFrom);
+        var conn = getWebRTCConnection(connectionId);
+        log.debug(`[${(conn||{}).owner}]: `, 'linkup, connectionId:', connectionId, 'audioFrom:', audioFrom, 'videoFrom:', videoFrom, 'dataFrom:', dataFrom);
         connections.linkupConnection(connectionId, audioFrom, videoFrom).then(onSuccess(callback), onError(callback));
     };
 
     that.cutoff = function (connectionId, callback) {
-        log.debug('cutoff, connectionId:', connectionId);
+        var conn = getWebRTCConnection(connectionId);
+        log.debug(`[${(conn||{}).owner}]: `, 'cutoff, connectionId:', connectionId);
         connections.cutoffConnection(connectionId).then(onSuccess(callback), onError(callback));
     };
 
     that.onTransportSignaling = function (connectionId, msg, callback) {
-        log.debug('onTransportSignaling, connection id:', connectionId, 'msg:', msg);
         var conn = getWebRTCConnection(connectionId);
+        log.debug(`[${(conn||{}).owner}]: `, 'onTransportSignaling, connection id:', connectionId, 'msg:', msg);
         if (conn) {
             conn.onSignalling(msg, connectionId);
             callback('callback', 'ok');
@@ -376,13 +392,13 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.mediaOnOff = function (connectionId, tracks, direction, action, callback) {
-        log.debug('mediaOnOff, connection id:', connectionId, 'tracks:', tracks, 'direction:', direction, 'action:', action);
         var conn = getWebRTCConnection(connectionId);
+        log.debug(`[${(conn||{}).owner}]: `, 'mediaOnOff, connection id:', connectionId, 'tracks:', tracks, 'direction:', direction, 'action:', action);
         var promises;
         if (conn) {
             promises = tracks.map(trackId => new Promise((resolve, reject) => {
                 if (mediaTracks.has(trackId)) {
-                    log.debug('got on off track:', trackId);
+                    log.debug(`[${(conn||{}).owner}]: `, 'got on off track:', trackId);
                     mediaTracks.get(trackId).onTrackControl(
                         'av', direction, action, resolve, reject);
                 } else {
@@ -434,6 +450,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
         peerConnections.forEach(pc => {
             pc.close();
         });
+        usage_collector.stop();
     };
 
     that.onFaultDetected = function (message) {
