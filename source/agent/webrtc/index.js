@@ -240,7 +240,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     // functions: publish, unpublish, subscribe, unsubscribe, linkup, cutoff
     // options = { transportId, tracks = [{mid, type, formatPreference}], controller, owner}
     that.publish = function (operationId, connectionType, options, callback) {
-        log.info(`[${options.owner}]: `, 'publish, operationId:', operationId, 'connectionType:', connectionType, 'options:', options);
+        log.info(`[${options.owner}]: `, 'publish, operationId:', operationId, 'connectionType:', connectionType, 'options:', JSON.stringify(options));
         if (connections.getConnection(operationId)) {
             return callback('callback', {type: 'failed', reason: 'Connection already exists:'+operationId});
         }
@@ -276,7 +276,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
 
     that.unpublish = function (operationId, callback) {
         var conn = getWebRTCConnection(operationId);
-        log.info(`[${conn.owner}]: `, 'unpublish, operationId:', operationId);
+        log.info(`[${conn&&conn.owner}]: `, 'unpublish, operationId:', operationId);
         if (conn) {
             // For 'webrtc'
             conn.removeTrackOperation(operationId);
@@ -293,7 +293,7 @@ module.exports = function (rpcClient, selfRpcId, parentRpcId, clusterWorkerIP) {
     };
 
     that.subscribe = function (operationId, connectionType, options, callback) {
-        log.info(`[${options.owner}]: `, 'subscribe, operationId:', operationId, 'connectionType:', connectionType, 'options:', options);
+        log.info(`[${options.owner}]: `, 'subscribe, operationId:', operationId, 'connectionType:', connectionType, 'options:', JSON.stringify(options));
         if (connections.getConnection(operationId)) {
             return callback('callback', {type: 'failed', reason: 'Connection already exists:'+operationId});
         }

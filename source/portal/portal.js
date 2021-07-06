@@ -112,7 +112,7 @@ var Portal = function(spec, rpcReq) {
       })
       .then(function(controller) {
         log.debug(`[${participantId}]: `,'got controller:', controller);
-        rpcReq.traceLog(cluster_name, `[${participantId}]{${controller}}: join conference`);
+        rpcReq.traceLog(cluster_name, `{${controller}}<${room_id}>[${participantId}]: join conference`);
         room_controller = controller;
         return rpcReq.join(controller, room_id, {id: participantId, user: userInfo, role: role, portal: self_rpc_id, origin: origin});
       })
@@ -144,7 +144,7 @@ var Portal = function(spec, rpcReq) {
   that.leave = function(participantId) {
     log.info(`[${participantId}]: `,'participant leave:', participantId);
     if (participants[participantId]) {
-      rpcReq.traceLog(cluster_name, `[${participantId}]{${participants[participantId].controller}}: leave conference`);
+      rpcReq.traceLog(cluster_name, `{${participants[participantId].controller}}<${participants[participantId].in_room}>[${participantId}]: leave conference`);
       rpcReq.leave(participants[participantId].controller, participantId)
         .catch(function(reason) {
           log.info(`[${participantId}]: `,'Failed in leaving, ', reason.message ? reason.message : reason);
@@ -225,8 +225,8 @@ var Portal = function(spec, rpcReq) {
   };
 
   that.onSessionSignaling = function(participantId, sessionId, signaling) {
-    log.info(`[${participantId}]: `,'onSessionSignaling, participantId:', participantId, 'sessionId:', sessionId, 'signalingType:', signaling&&signaling.type);
-    log.debug(`[${participantId}]: `,'onSessionSignaling, participantId:', participantId, 'sessionId:', sessionId, 'signaling:', signaling);
+    log.info(`[${participantId}]: `,'onSessionSignaling, ', 'sessionId:', sessionId, 'signalingType:', signaling&&signaling.type);
+    log.debug(`[${participantId}]: `,'onSessionSignaling, ', 'sessionId:', sessionId, 'signaling:', signaling);
 
     var participant = participants[participantId];
     if (participants[participantId] === undefined) {

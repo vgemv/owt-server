@@ -9,6 +9,7 @@ var Scheduler = require('./scheduler').Scheduler;
 // Logger
 var log = logger.getLogger('ClusterManager');
 var trace = logger.getLogger('Trace');
+var usageLog = logger.getLogger('Usage');
 
 var ClusterManager = function (clusterName, selfId, spec) {
     var that = {name: clusterName,
@@ -43,6 +44,66 @@ var ClusterManager = function (clusterName, selfId, spec) {
                 log.info('Worker', worker, 'is not alive any longer, Deleting it.');
                 workerQuit(worker);
             }
+        }
+    };
+
+    var bpsStrToNumber = function (bpsStr) {
+        bpsStr = String(bpsStr).toLowerCase();
+        let ret = parseInt(bpsStr);
+        if(bpsStr.indexOf("gb")>0){
+            ret *= 1024*1024*1024;
+        }
+        else if(bpsStr.indexOf("mb")>0){
+            ret *= 1024*1024;
+        }
+        else if(bpsStr.indexOf("kb")>0){
+            ret *= 1024;
+        }
+        return ret;
+    };
+
+    var usageToLogFormat = function (usage) {
+        let ret = [];
+        usage.forEach(i=>{
+            if(!i.usage||!i.info)return;
+            let name = `agent|${i.info.purpose}|${i.info.ip}`;
+            let value = `${i.usage.cpu}|${i.usage.mem}|${i.usage.mem_bytes}`;
+            ret.push(`${name}=${value}`);
+
+            if(i.tasks_usage){
+                Object.keys(i.tasks_usage).forEach(j=>{
+                    let item = i.tasks_usage[j];
+                    let name = `worker|${j}`;
+                    let value = `${item.cpu}|${item.mem}|${item.mem_bytes}`;
+                    ret.push(`${name}=${value}`);
+                    if(item.net){
+                        Object.keys(item.net).forEach(k=>{
+                            let itemk = item.net[k];
+                            let name = `network|${j}|${k}`;
+                            let value = `${bpsStrToNumber(itemk.in_rate)}|${bpsStrToNumber(itemk.out_rate)}|${itemk.owner}`;
+                            ret.push(`${name}=${value}`);
+                        });
+                    }
+                });
+            }
+        });
+        return ret;
+    };
+
+    var usageSaveToLog = async function () {
+        try{
+            let allwokers = await new Promise(o=>getWorkers('all',o));
+            let allattrs = await Promise.all(allwokers.map(async (w)=>{
+                return await new Promise((o,x)=>getWorkerAttr(w,o,x));
+            }));
+            
+            let log = usageToLogFormat(allattrs);
+            log.forEach(i=>{
+                usageLog.info(i);
+            });
+            
+        }catch(e){
+            log.error(e);
         }
     };
 
@@ -265,6 +326,8 @@ var ClusterManager = function (clusterName, selfId, spec) {
         is_freshman = false;
         monitoringTarget = monitoringTgt;
         setInterval(checkAlive, check_alive_period);
+        setInterval(usageSaveToLog, check_alive_period);
+        
         for (var purpose in schedulers) {
             schedulers[purpose].serve();
         }
