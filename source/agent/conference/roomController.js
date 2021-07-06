@@ -560,7 +560,7 @@ module.exports.create = function (spec, on_init_ok, on_init_failed) {
                 }
                 var publisher = (terminals[stream_owner] ? terminals[stream_owner].owner : 'common');
 
-                rpcReq.traceLog(cluster, `[${publisher}]{${target_node}}: spread stream ${audio&&"audio"||video&&"video"}`);
+                rpcReq.traceLog(cluster, `{${target_node}}<${room_id}>[${publisher}]: spread stream ${audio&&"audio"||video&&"video"}`);
 
                 makeRPC(
                     rpcClient,

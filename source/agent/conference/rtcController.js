@@ -286,7 +286,7 @@ class RtcController extends EventEmitter {
       this.operations.set(sessionId, op);
       // Return promise for this operation
       const options = {transportId, tracks, controller: this.roomRpcId, owner: ownerId};
-      this.rpcReq.traceLog(this.clusterRpcId, `[${ownerId}]{${locality.node}}: webrtc start ${direction}`);
+      this.rpcReq.traceLog(this.clusterRpcId, `{${locality.node}}<${this.roomId}>[${ownerId}]: webrtc start ${direction}`);
       return this.rpcReq.initiate(locality.node, sessionId, 'webrtc', direction, options);
     });
   }
@@ -302,7 +302,7 @@ class RtcController extends EventEmitter {
     const operation = this.operations.get(sessionId);
     const transport = this.transports.get(operation.transportId);
     const locality = transport.locality;
-    this.rpcReq.traceLog(this.clusterRpcId, `[${transport.owner}]{${locality.node}}: webrtc stop ${direction}`);
+    this.rpcReq.traceLog(this.clusterRpcId, `{${locality.node}}<${this.roomId}>[${transport.owner}]: webrtc stop ${direction}`);
     return this.rpcReq.terminate(locality.node, sessionId, direction).then(() => {
       if (this.operations.has(sessionId)) {
         const owner = transport.owner;
