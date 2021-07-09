@@ -648,7 +648,8 @@ void SoftFrameGenerator::layout_regions(SoftFrameGenerator *t, rtc::scoped_refpt
     for (LayoutSolution::const_iterator it = regions.begin(); it != regions.end(); ++it) {
         if(it->input < 0)
             continue;
-        
+            
+        Region region = it->region;
         if(!region.area.rect.width.numerator || !region.area.rect.height.numerator)
             continue;
             
@@ -659,7 +660,7 @@ void SoftFrameGenerator::layout_regions(SoftFrameGenerator *t, rtc::scoped_refpt
 
         rtc::scoped_refptr<webrtc::VideoFrameBuffer> inputBuffer = inputFrame->video_frame_buffer();
 
-        Region region = it->region;
+
         uint32_t dst_x      = (uint64_t)composite_width * region.area.rect.left.numerator / region.area.rect.left.denominator;
         uint32_t dst_y      = (uint64_t)composite_height * region.area.rect.top.numerator / region.area.rect.top.denominator;
         uint32_t dst_width  = (uint64_t)composite_width * region.area.rect.width.numerator / region.area.rect.width.denominator;
