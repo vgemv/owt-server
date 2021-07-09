@@ -66,9 +66,9 @@ index 6023e47..a78b057 100644
 -#include "rtp/PliPacerHandler.h"
 -#include "rtp/RtpPaddingGeneratorHandler.h"
 +// #include "rtp/RtpRetransmissionHandler.h"
-+ #include "rtp/RtcpFeedbackGenerationHandler.h"
++// #include "rtp/RtcpFeedbackGenerationHandler.h"
 +// #include "rtp/RtpPaddingRemovalHandler.h"
-+ #include "rtp/StatsHandler.h"
++// #include "rtp/StatsHandler.h"
 +// #include "rtp/SRPacketHandler.h"
 +// #include "rtp/SenderBandwidthEstimationHandler.h"
 +// #include "rtp/LayerDetectorHandler.h"
@@ -138,19 +138,19 @@ index 6023e47..a78b057 100644
 +  // pipeline_->addFront(std::make_shared<FecReceiverHandler>());
 +  // pipeline_->addFront(std::make_shared<LayerBitrateCalculationHandler>());
 +  // pipeline_->addFront(std::make_shared<QualityFilterHandler>());
-+   pipeline_->addFront(std::make_shared<IncomingStatsHandler>());
++  // pipeline_->addFront(std::make_shared<IncomingStatsHandler>());
 +  // pipeline_->addFront(std::make_shared<RtpTrackMuteHandler>());
 +  // pipeline_->addFront(std::make_shared<RtpSlideShowHandler>());
 +  // pipeline_->addFront(std::make_shared<RtpPaddingGeneratorHandler>());
 +  // pipeline_->addFront(std::make_shared<PliPacerHandler>());
 +  // pipeline_->addFront(std::make_shared<BandwidthEstimationHandler>());
 +  // pipeline_->addFront(std::make_shared<RtpPaddingRemovalHandler>());
-+   pipeline_->addFront(std::make_shared<RtcpFeedbackGenerationHandler>());
++  // pipeline_->addFront(std::make_shared<RtcpFeedbackGenerationHandler>());
 +  // pipeline_->addFront(std::make_shared<RtpRetransmissionHandler>());
 +  // pipeline_->addFront(std::make_shared<SRPacketHandler>());
 +  // pipeline_->addFront(std::make_shared<SenderBandwidthEstimationHandler>());
 +  // pipeline_->addFront(std::make_shared<LayerDetectorHandler>());
-+   pipeline_->addFront(std::make_shared<OutgoingStatsHandler>());
++  // pipeline_->addFront(std::make_shared<OutgoingStatsHandler>());
 +  // pipeline_->addFront(std::make_shared<PacketCodecParser>());
  
    pipeline_->addFront(std::make_shared<PacketWriter>(this));

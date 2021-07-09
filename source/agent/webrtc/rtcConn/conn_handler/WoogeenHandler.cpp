@@ -5,7 +5,11 @@
 #include "WoogeenHandler.h"
 #include "MediaStream.h"
 #include <rtputils.h>
+// owt-server/third_party/licode/erizo/src/erizo/rtp/RtpUtils.h
+#include "../erizo/src/erizo/rtp/RtpUtils.h"
 
+// owt-server/source/core/common/rtputils.h
+#include "../../../../core/common/rtputils.h"
 namespace erizo {
 
 DEFINE_LOGGER(WoogeenHandler, "WoogeenHandler");
