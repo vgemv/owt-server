@@ -71,8 +71,8 @@ index b1438118..eaecce39 100644
          // Set SSRC for mid/rsid
          forEachMediaStream([this, streamId, ssrc] (const std::shared_ptr<MediaStream> &media_stream) {
            if (media_stream->getId() == streamId) {
--            media_stream->setVideoSourceSSRC(ssrc);
--            media_stream->setVideoSourceSSRC(ssrc);
+-            //media_stream->setVideoSourceSSRC(ssrc);
+-            //media_stream->setVideoSourceSSRC(ssrc);
 +            // media_stream->setVideoSourceSSRC(ssrc);
 +            // media_stream->setVideoSourceSSRC(ssrc);
              mapping_ssrcs_[streamId] = ssrc;
@@ -87,7 +87,7 @@ index a65138a6..9f163ec8 100644
    std::shared_ptr<Clock> clock_;
  };
 -}  // namespace erizo
-+}  // namespace erizo 
++}  // namespace erizo
  
  #endif  // ERIZO_SRC_ERIZO_RTP_RTCPFEEDBACKGENERATIONHANDLER_H_
 diff --git a/erizo/src/erizo/rtp/StatsHandler.cpp b/erizo/src/erizo/rtp/StatsHandler.cpp
