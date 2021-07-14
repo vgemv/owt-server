@@ -4,7 +4,6 @@
 
 'use strict';
 var Getopt = require('node-getopt');
-var config = require('./configLoader').load();
 
 var logger = require('./logger').logger;
 var log = logger.getLogger('WorkingAgent');
@@ -12,11 +11,13 @@ var log = logger.getLogger('WorkingAgent');
 // Parse command line arguments
 var getopt = new Getopt([
   ['U' , 'my-purpose=ARG'             , 'Purpose of this agent'],
+  ['c' , 'config-file=ARG'             , 'Config toml file path of this agent'],
   ['h' , 'help'                       , 'display this help']
 ]);
 
 var myId = '';
 var myPurpose = 'webrtc';
+var configFile = './agent.toml';
 var myState = 2;
 
 var opt = getopt.parse(process.argv.slice(2));
@@ -44,12 +45,16 @@ for (var prop in opt.options) {
                     process.exit(0);
                 }
                 break;
+            case 'config-file':
+              configFile = value;
+              break;
             default:
                 break;
         }
     }
 }
 
+var config = require('./configLoader').load(configFile);
 var clusterWorker = require('./clusterWorker');
 var nodeManager = require('./nodeManager');
 var amqper = require('./amqpClient')();

@@ -34,6 +34,16 @@ const question = (input) => new Promise((resolve) => {
   });
 });
 
+const saveRegistry = async (ip) => {
+  let configFile = fs.readdirSync(__dirname).filter(i=>i.toLowerCase().endsWith(".toml"))[0];
+  fs.statSync(configFile);
+  let data = fs.readFileSync(configFile, 'utf8');
+  data = data.replace(/^([ ]*\[mongo\].*\n(^[ ]*#.*\n)*(^[ ]*[^\[]*\n)*)(^[ ]*dataBaseURL.*)/m, `$1dataBaseURL = "${ip}/owtdb"`);
+  data = data.replace(/^([ ]*\[rabbit\].*\n(^[ ]*#.*\n)*(^[ ]*[^\[]*\n)*)(^[ ]*host.*)/m, `$1host = "${ip}"`);
+  let ret = fs.writeFileSync(configFile, data, 'utf8');
+  return ret;
+};
+
 const saveAuth = (obj, filename) => new Promise((resolve, reject) => {
   const lock = (obj) => {
     cipher.lock(cipher.k, obj, filename, (err) => {
@@ -133,6 +143,16 @@ const parseArgs = () => {
   if (process.argv.includes('--internal')) {
     options.internal = true;
   }
+  if (process.argv.includes('--all')) {
+    options.all = true;
+    options.user = process.argv[3];
+    options.password = process.argv[4];
+    options.ip = process.argv[5];
+  }
+  if (process.argv.includes('--registry')) {
+    options.registry = true;
+    options.ip = process.argv[3];
+  }
   if (Object.keys(options).length === 0) {
     options.rabbit = true;
     options.mongo = true;
@@ -141,6 +161,18 @@ const parseArgs = () => {
 }
 
 parseArgs()
+  .then(async () => {
+    if (options.all) {
+      await saveAuth({ internalPass: options.password }, authStore);
+      await saveAuth({ mongo: { username: options.user, password: options.password } }, authStore)
+      await saveAuth({ rabbit: { username: options.user, password: options.password } }, authStore)
+    }
+  })
+  .then(async () => {
+    if (options.registry && options.ip) {
+      saveRegistry(options.ip)
+    }
+  })
   .then(() => {
     if (options.rabbit) {
       return updateRabbit();

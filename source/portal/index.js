@@ -7,10 +7,34 @@ var fs = require('fs');
 var toml = require('toml');
 var logger = require('./logger').logger;
 var log = logger.getLogger('Main');
+var Getopt = require('node-getopt');
+// Parse command line arguments
+var getopt = new Getopt([
+  ['c' , 'config-file=ARG'             , 'Config toml file path of this agent'],
+  ['h' , 'help'                       , 'display this help']
+]);
 
+var configFile = "./portal.toml";
+
+var opt = getopt.parse(process.argv.slice(2));
+
+for (var prop in opt.options) {
+    if (opt.options.hasOwnProperty(prop)) {
+        var value = opt.options[prop];
+        switch (prop) {
+            case 'help':
+                getopt.showHelp();
+                process.exit(0);
+                break;
+            case 'config-file':
+                configFile = value;
+                break;
+        }
+    }
+}
 var config;
 try {
-  config = toml.parse(fs.readFileSync('./portal.toml'));
+  config = toml.parse(fs.readFileSync(configFile));
 } catch (e) {
   log.error('Parsing config error on line ' + e.line + ', column ' + e.column + ': ' + e.message);
   process.exit(1);

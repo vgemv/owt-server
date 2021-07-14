@@ -2,13 +2,13 @@
 #
 # http://eh.meklu.org/script/meksysinfo
 
-lsb_release >/dev/null 2>/dev/null
-if [ $? = 0 ]
-then
-  lsb_release -ds | sed 's/^\"//g;s/\"$//g'
+#lsb_release >/dev/null 2>/dev/null
+#if [ $? = 0 ]
+#then
+#  lsb_release -ds | sed 's/^\"//g;s/\"$//g'
 # a bunch of fallbacks if no lsb_release is available
 # first trying /etc/os-release which is provided by systemd
-elif [ -f /etc/os-release ]
+if [ -f /etc/os-release ]
 then
   source /etc/os-release
   if [ -n "${PRETTY_NAME}" ]

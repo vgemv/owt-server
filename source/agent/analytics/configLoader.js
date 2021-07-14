@@ -8,10 +8,10 @@ var path = require('path');
 var toml = require('toml');
 var networkHelper = require('./networkHelper');
 
-module.exports.load = () => {
+module.exports.load = (configFile) => {
   var config;
   try {
-    config = toml.parse(fs.readFileSync('./agent.toml')) || {};
+    config = toml.parse(fs.readFileSync(configFile||'./agent.toml')) || {};
     config.agent = config.agent || {};
     config.agent.maxProcesses = config.agent.maxProcesses || -1;
     config.agent.prerunProcesses = config.agent.prerunProcesses || 2;
