@@ -1,0 +1,109 @@
+ erizo/src/erizo/MediaStream.cpp                     | 12 ++++++------
+ erizo/src/erizo/WebRtcConnection.cpp                |  8 ++++----
+ erizo/src/erizo/rtp/RtcpFeedbackGenerationHandler.h |  2 +-
+ erizo/src/erizo/rtp/StatsHandler.cpp                |  6 +++---
+ 4 files changed, 14 insertions(+), 14 deletions(-)
+diff --git a/erizo/src/erizo/MediaStream.cpp b/erizo/src/erizo/MediaStream.cpp
+index 465caa44..259f887b 100644
+--- a/erizo/src/erizo/MediaStream.cpp
++++ b/erizo/src/erizo/MediaStream.cpp
+@@ -25,9 +25,9 @@
+ // #include "rtp/FecReceiverHandler.h"
+ #include "rtp/RtcpProcessorHandler.h"
+ // #include "rtp/RtpRetransmissionHandler.h"
+-// #include "rtp/RtcpFeedbackGenerationHandler.h"
++#include "rtp/RtcpFeedbackGenerationHandler.h"
+ // #include "rtp/RtpPaddingRemovalHandler.h"
+-// #include "rtp/StatsHandler.h"
++#include "rtp/StatsHandler.h"
+ // #include "rtp/SRPacketHandler.h"
+ // #include "rtp/SenderBandwidthEstimationHandler.h"
+ // #include "rtp/LayerDetectorHandler.h"
+@@ -147,7 +147,7 @@ bool MediaStream::isSinkSSRC(uint32_t ssrc) {
+ }
+ 
+ bool MediaStream::setRemoteSdp(std::shared_ptr<SdpInfo> sdp) {
+-  ELOG_DEBUG("%s message: setting remote SDP", toLog());
++  ELOG_DEBUG("%s message: setting remote SDP: %s", toLog(), sdp->getSdp());
+   if (!sending_) {
+     return true;
+   }
+@@ -362,7 +362,7 @@ void MediaStream::initializePipeline() {
+   // pipeline_->addFront(std::make_shared<FecReceiverHandler>());
+   // pipeline_->addFront(std::make_shared<LayerBitrateCalculationHandler>());
+   // pipeline_->addFront(std::make_shared<QualityFilterHandler>());
+-  // pipeline_->addFront(std::make_shared<IncomingStatsHandler>());
++  pipeline_->addFront(std::make_shared<IncomingStatsHandler>());
+   // pipeline_->addFront(std::make_shared<RtpTrackMuteHandler>());
+   // pipeline_->addFront(std::make_shared<RtpSlideShowHandler>());
+   // pipeline_->addFront(std::make_shared<RtpPaddingGeneratorHandler>());
+@@ -371,12 +371,12 @@ void MediaStream::initializePipeline() {
+     // pipeline_->addFront(std::make_shared<BandwidthEstimationHandler>());
+   }
+   // pipeline_->addFront(std::make_shared<RtpPaddingRemovalHandler>());
+-  // pipeline_->addFront(std::make_shared<RtcpFeedbackGenerationHandler>());
++  pipeline_->addFront(std::make_shared<RtcpFeedbackGenerationHandler>(false));
+   // pipeline_->addFront(std::make_shared<RtpRetransmissionHandler>());
+   // pipeline_->addFront(std::make_shared<SRPacketHandler>());
+   // pipeline_->addFront(std::make_shared<SenderBandwidthEstimationHandler>());
+   // pipeline_->addFront(std::make_shared<LayerDetectorHandler>());
+-  // pipeline_->addFront(std::make_shared<OutgoingStatsHandler>());
++  pipeline_->addFront(std::make_shared<OutgoingStatsHandler>());
+   // pipeline_->addFront(std::make_shared<PacketCodecParser>());
+ 
+   pipeline_->addFront(std::make_shared<PacketWriter>(this));
+diff --git a/erizo/src/erizo/WebRtcConnection.cpp b/erizo/src/erizo/WebRtcConnection.cpp
+index b1438118..eaecce39 100644
+--- a/erizo/src/erizo/WebRtcConnection.cpp
++++ b/erizo/src/erizo/WebRtcConnection.cpp
+@@ -225,8 +225,8 @@ std::shared_ptr<SdpInfo> WebRtcConnection::getLocalSdpInfo() {
+     if (media_stream->getVideoSinkSSRC() != kDefaultVideoSinkSSRC && media_stream->getVideoSinkSSRC() != 0) {
+       video_ssrc_list.push_back(media_stream->getVideoSinkSSRC());
+     }
+-    ELOG_DEBUG("%s message: getting local SDPInfo, stream_id: %s, audio_ssrc: %u",
+-               toLog(), media_stream->getId(), media_stream->getAudioSinkSSRC());
++    ELOG_DEBUG("%s message: getting local SDPInfo, stream_id: %s, audio_ssrc: %u, video_ssrc: %u",
++               toLog(), media_stream->getId(), media_stream->getAudioSinkSSRC(), media_stream->getVideoSinkSSRC());
+     if (!video_ssrc_list.empty()) {
+       local_sdp_->video_ssrc_map[media_stream->getLabel()] = video_ssrc_list;
+     }
+@@ -590,8 +590,8 @@ void WebRtcConnection::onTransportData(std::shared_ptr<DataPacket> packet, Trans
+         // Set SSRC for mid/rsid
+         forEachMediaStream([this, streamId, ssrc] (const std::shared_ptr<MediaStream> &media_stream) {
+           if (media_stream->getId() == streamId) {
+-            media_stream->setVideoSourceSSRC(ssrc);
+-            media_stream->setVideoSourceSSRC(ssrc);
++            // media_stream->setVideoSourceSSRC(ssrc);
++            // media_stream->setVideoSourceSSRC(ssrc);
+             mapping_ssrcs_[streamId] = ssrc;
+           }
+         });
+diff --git a/erizo/src/erizo/rtp/RtcpFeedbackGenerationHandler.h b/erizo/src/erizo/rtp/RtcpFeedbackGenerationHandler.h
+index a65138a6..9f163ec8 100644
+--- a/erizo/src/erizo/rtp/RtcpFeedbackGenerationHandler.h
++++ b/erizo/src/erizo/rtp/RtcpFeedbackGenerationHandler.h
+@@ -52,6 +52,6 @@ class RtcpFeedbackGenerationHandler: public Handler {
+   bool nacks_enabled_;
+   std::shared_ptr<Clock> clock_;
+ };
+-}  // namespace erizo
++}  // namespace erizo 
+ 
+ #endif  // ERIZO_SRC_ERIZO_RTP_RTCPFEEDBACKGENERATIONHANDLER_H_
+diff --git a/erizo/src/erizo/rtp/StatsHandler.cpp b/erizo/src/erizo/rtp/StatsHandler.cpp
+index 6660ab29..210ba4b6 100644
+--- a/erizo/src/erizo/rtp/StatsHandler.cpp
++++ b/erizo/src/erizo/rtp/StatsHandler.cpp
+@@ -110,9 +110,9 @@ void StatsCalculator::processRtcpPacket(std::shared_ptr<DataPacket> packet) {
+         ELOG_DEBUG("RTCP BYE");
+         break;
+       case RTCP_Receiver_PT:
+-        if (is_feedback_on_publisher) {
+-          break;
+-        }
++        // if (is_feedback_on_publisher) {
++        //   break;
++        // }
+         ELOG_DEBUG("RTP RR: Fraction Lost %u, packetsLost %u", chead->getFractionLost(), chead->getLostPackets());
+         getStatsInfo()[ssrc].insertStat("fractionLost", CumulativeStat{chead->getFractionLost()});
+         getStatsInfo()[ssrc].insertStat("packetsLost", CumulativeStat{chead->getLostPackets()});
