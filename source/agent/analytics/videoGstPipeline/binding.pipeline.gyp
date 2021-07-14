@@ -34,7 +34,7 @@
     ],
     # 'INET', 'INET6' flags must be added for usrsctp lib, otherwise the arguments of receive callback would shift
     #'cflags_cc': ['-DINET', '-DINET6', '-DBUILD_FOR_RTSPSOURCE'],
-    'cflags_cc': ['-DINET', '-DINET6', '-DBUILD_FOR_GST_ANALYTICS', '<!@(pkg-config --cflags glib-2.0)'],
+    'cflags_cc': ['-DINET', '-DINET6', '-DNOWEBRTC', '-DBUILD_FOR_GST_ANALYTICS', '<!@(pkg-config --cflags glib-2.0)'],
     'conditions': [
       [ 'OS=="mac"', {
         'xcode_settings': {
